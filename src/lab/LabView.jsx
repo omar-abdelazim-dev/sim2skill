@@ -82,6 +82,7 @@ function NourHud({ open, setOpen }) {
             : ['Nudge', 'Hint', 'Explain'].map((n, i) => <li key={n} className={m && i + 1 === lv ? 'on' : ''} aria-current={m && i + 1 === lv ? 'step' : undefined}>{n}</li>)}
         </ol>
         <button type="button" className="hud-icon fold" aria-expanded={open} aria-label={open ? 'Fold Nour' : 'Open Nour'} onClick={() => setOpen(!open)}>{open ? '–' : '+'}</button>
+        <button type="button" className="hud-icon fold" aria-label="Hide Nour" title="Hide" onClick={() => ACT.panel('nour')}>×</button>
       </div>
       <p className="bubble" aria-live="polite">{S.say}</p>
       {open && <>
@@ -106,6 +107,7 @@ function Dock() {
   const E = EXPERIMENTS[S.exp], b = S.bench[S.exp], sl = E.slots.find(x => x.id === S.active) || E.slots[0], cur = b[sl.id];
   return (
     <section className="hud-card dock" aria-label="Parts and controls">
+      <button type="button" className="hud-icon fold panel-x" aria-label="Hide controls" title="Hide" onClick={() => ACT.panel('kit')}>×</button>
       <div className="dock-row">
         <div className="seg dark" role="group" aria-label="Slot">{E.slots.map(x => <button type="button" key={x.id} aria-pressed={x.id === sl.id} onClick={() => ACT.slot(x.id)}>{x.name}</button>)}</div>
         {sl.id === 'D' && cur && b.burnt && <button className="hbtn small" type="button" onClick={() => ACT.replace()}>Replace LED</button>}
@@ -154,6 +156,7 @@ function Kit({ parts, setParts }) {
   const opts = []; E.slots.forEach(sl => sl.options.forEach(id => opts.push(id)));
   return (
     <section className="hud-card kit" aria-label="Your hands and controls">
+      <button type="button" className="hud-icon fold panel-x" aria-label="Hide controls" title="Hide" onClick={() => ACT.panel('kit')}>×</button>
       <div className="kit-held">
         {h ? (<>
           <span className="ico" dangerouslySetInnerHTML={{ __html: partIcon(h.id) }} />
@@ -179,7 +182,7 @@ function Kit({ parts, setParts }) {
         <button className="slot-tile" type="button" key={id} aria-pressed={!!h && h.id === id} onClick={() => ACT.take(id)}>
           <span className="key">{i + 1}</span><span className="ico" dangerouslySetInnerHTML={{ __html: partIcon(id) }} /><span className="nm">{partLabel(id)}</span>
         </button>))}</div>}
-      {!TOUCH && <div className="keys"><kbd>W A S D</kbd> walk <kbd>Shift</kbd> run · drag to look · <kbd>E</kbd> or click to use · <kbd>Space</kbd> switch · <kbd>Esc</kbd> leave</div>}
+      {!TOUCH && <div className="keys"><kbd>W A S D</kbd> walk <kbd>Shift</kbd> run · drag to look · <kbd>E</kbd> or click to use · <kbd>Space</kbd> switch · <kbd>H</kbd> hide panels · <kbd>Esc</kbd> leave</div>}
     </section>
   );
 }
@@ -210,6 +213,15 @@ export default function LabView({ onBack, onDashboard }) {
   const E = EXPERIMENTS[S.exp];
   const pill = { idle: ['', 'Switch open'], live: ['live', 'Circuit live'], fuse: ['crit', 'Fuse tripped'], burnt: ['crit', 'LED burnt out'], stopped: ['warn', 'Test stopped'], success: ['good', 'Goal reached'] }[S.status];
   const use3d = WEBGL && S.mode !== '2d', walk = use3d && S.mode === 'walk';
+  const anyOn = Object.values(S.panels).some(Boolean), allOn = Object.values(S.panels).every(Boolean);
+  // with Nour's panel hidden, what she says shows as a short subtitle instead
+  const [caption, setCaption] = useState(null);
+  const lastSay = useRef(S.say);
+  useEffect(() => {
+    if (S.say === lastSay.current) return; lastSay.current = S.say;
+    if (S.panels.nour) { setCaption(null); return; }
+    setCaption(S.say); const t = setTimeout(() => setCaption(null), Math.max(5000, S.say.split(/\s+/).length * 380)); return () => clearTimeout(t);
+  });
 
   // tell the camera how much of the screen the HUD covers, so the bench sits in the free space
   useEffect(() => {
@@ -229,6 +241,7 @@ export default function LabView({ onBack, onDashboard }) {
       else if (S.mode === 'walk' && (e.key === 'e' || e.key === 'E')) { if (rt.lab) rt.lab.useAim(); }
       else if (S.mode === 'walk' && (e.key === 'r' || e.key === 'R')) ACT.rotate();
       else if (S.mode === 'walk' && (e.key === 'q' || e.key === 'Q')) ACT.drop();
+      else if (e.key === 'h' || e.key === 'H') ACT.hud();
       else if (e.key === ' ' && !(e.target.closest && e.target.closest('button'))) { e.preventDefault(); ACT.sw(); }
       else if (e.key === 'Escape') { if (drawer) setDrawer(false); else onBack(); }
     };
@@ -259,27 +272,34 @@ export default function LabView({ onBack, onDashboard }) {
             <span className={'pill ' + pill[0]}>{pill[1]}</span>
             {WEBGL && <div className="seg dark" role="group" aria-label="View">{[['walk', 'Walk'], ['3d', 'Orbit'], ['2d', 'Schematic']].map(([m, l]) => <button type="button" key={m} aria-pressed={S.mode === m} onClick={() => ACT.mode(m)}>{l}</button>)}</div>}
             {use3d && <button type="button" className="hud-icon" aria-label={walk ? 'Back to the bench' : 'Reset camera'} title={walk ? 'Back to the bench' : 'Reset camera'} onClick={() => ACT.view()}>⟲</button>}
+            <button type="button" className="hud-icon" aria-pressed={!allOn} aria-label={anyOn ? 'Hide all panels (H)' : 'Show all panels (H)'} title={anyOn ? 'Hide all panels (H)' : 'Show all panels (H)'} onClick={() => ACT.hud()}>{anyOn ? '◱' : '▣'}</button>
             <button type="button" className="hud-icon" aria-pressed={drawer} aria-label="What Nour receives" title="What Nour receives" onClick={() => setDrawer(!drawer)}>{'{ }'}</button>
             <button type="button" className="hud-icon" aria-label="Instructor dashboard" title="Instructor dashboard" onClick={onDashboard}>▦</button>
           </div>
         </header>
 
-        <section className="hud-card meters" aria-label="Instruments">
+        {S.panels.meters && <section className="hud-card meters" aria-label="Instruments">
+          <button type="button" className="hud-icon fold panel-x" aria-label="Hide readings" title="Hide" onClick={() => ACT.panel('meters')}>×</button>
           <div className="readouts"><Meters /></div>
           {S.exp === 'rc' && <Scope />}
-        </section>
+        </section>}
 
         {drawer && <Drawer onClose={() => setDrawer(false)} />}
 
         <div className="hud-bottom" ref={botRef}>
-          <NourHud open={nourOpen} setOpen={setNourOpen} />
-          {walk ? <Kit parts={parts} setParts={setParts} /> : <Dock />}
+          {S.panels.nour ? <NourHud open={nourOpen} setOpen={setNourOpen} /> : <span />}
+          {S.panels.kit ? (walk ? <Kit parts={parts} setParts={setParts} /> : <Dock />) : <span />}
           {walk && TOUCH && <div className="touch-pad"><Joystick /><div className="touch-acts">
             <button type="button" className="use-btn" onClick={() => rt.lab && rt.lab.useAim()} disabled={!rt.aim}>Use</button>
             {rt.held && rt.held.slot === 'D' && <button type="button" className="hbtn small" onClick={() => ACT.rotate()}>Flip</button>}
             {rt.held && <button type="button" className="hbtn small ghosty" onClick={() => ACT.drop()}>Put back</button>}
           </div></div>}
         </div>
+        {!allOn && <div className="restore" role="group" aria-label="Hidden panels">
+          {[['nour', 'Nour'], ['meters', 'Readings'], ['kit', 'Controls']].filter(([k]) => !S.panels[k]).map(([k, l]) => <button type="button" key={k} className="hbtn small" onClick={() => ACT.panel(k)}>{l}</button>)}
+          {!TOUCH && <span className="restore-k"><kbd>H</kbd> shows all</span>}
+        </div>}
+        {caption && <div className="caption" role="status"><b>Nour</b>{caption}</div>}
         {walk && <><div className={'crosshair' + (rt.aim ? ' on' : '')} aria-hidden="true" />{rt.aim && <div className="aim" role="status">{TOUCH ? '' : <kbd>E</kbd>}{rt.aim}</div>}</>}
         {use3d && <div className="vp-hint">{walk ? (TOUCH ? 'Left stick to walk · drag to look · tap a part or slot to use it' : 'WASD to walk · drag to look · E to pick up and place parts') : 'Drag to look around · keys 1–' + (E.slots.find(x => x.id === S.active) || E.slots[0]).options.length + ' pick parts · Space = switch'}</div>}
       </div>

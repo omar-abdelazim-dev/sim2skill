@@ -13,7 +13,8 @@ const blank = V => ({ V, R: null, D: null, reversed: false, burnt: false });
 
 export const S = { exp: 'ohm', bench: { ohm: blank(9), led: blank(9), rc: blank(5) }, closed: false, status: 'idle', active: 'R', last: null,
   lastMistake: {}, level: {}, ctx: {}, completed: {}, stats: { attempts: 0, mistakes: 0, hints: 0, counts: {} }, log: [], say: EXPERIMENTS.ohm.intro,
-  question: null, voice: false, src: 'example', csv: false, mode: 'walk' };
+  question: null, voice: false, src: 'example', csv: false, mode: 'walk',
+  panels: { meters: true, nour: true, kit: true } };
 // runtime values that are not part of the lab record
 export const rt = { scope: null, speaking: false, lab: null, entering: false, held: null, heldRev: false, aim: null, joy: null };
 
@@ -111,6 +112,9 @@ export const ACT = {
   rotate() { if (rt.held && rt.held.slot === 'D') { rt.heldRev = !rt.heldRev; bump(); } else if (S.bench[S.exp].D) ACT.flip(); },
   drop() { if (!rt.held) return; logLine(`Put back ${partLabel(rt.held.id)}`); rt.held = null; rt.heldRev = false; bump(); },
   aimChanged() { bump(); },
+  // show or hide the HUD panels so the student can see the whole lab
+  panel(name) { S.panels[name] = !S.panels[name]; bump(); },
+  hud() { const anyOn = Object.values(S.panels).some(Boolean); Object.keys(S.panels).forEach(k => { S.panels[k] = !anyOn; }); bump(); },
   part(id) { const b = S.bench[S.exp], sl = S.active; touchBench(); b[sl] = id; if (sl === 'D') { b.reversed = false; b.burnt = false; }
     logLine(`Placed ${partLabel(id)} in the ${slotName(sl)} slot`); S.active = firstEmpty(); bump(); },
   flip() { const b = S.bench[S.exp]; touchBench(); b.reversed = !b.reversed; logLine(`Flipped the ${slotName('D')}`); bump(); },
