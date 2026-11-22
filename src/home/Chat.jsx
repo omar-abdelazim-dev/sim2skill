@@ -2,6 +2,36 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import { caps, onCaps } from '../claude.js';
 import { LABS, LIVE } from '../labs.js';
 import { S, ACT, speak, useLab, voiceAvailable, rt } from '../lab/store.js';
+import { schematicSVG } from '../lab/netlist.js';
+import { DEMO, SAMPLES, demoAsk } from './demo.js';
+
+// Nour's backend (server/nour_server.py). Same origin by default; set VITE_NOUR_API when it lives elsewhere.
+const NOUR_API = (import.meta.env && import.meta.env.VITE_NOUR_API) || '/api/nour';
+
+// Shrinks a photo before upload so requests stay small.
+function prepare(file) {
+  return new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, 1400 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob(b => (b ? res(b) : rej(new Error('Could not read the image'))), 'image/jpeg', 0.9); URL.revokeObjectURL(url);
+    };
+    img.onerror = () => rej(new Error('Could not read the image')); img.src = url;
+  });
+}
+async function askServer(history, file) {
+  if (DEMO) return demoAsk(history, !!file);
+  const fd = new FormData();
+  fd.append('messages', JSON.stringify(history.slice(-12).map(m => ({ role: m.role === 'user' ? 'user' : 'nour', text: m.text || '' }))));
+  if (file) fd.append('image', await prepare(file), 'circuit.jpg');
+  let code = ''; try { code = localStorage.getItem('nour_code') || ''; } catch (e) { /* ignore */ }
+  const r = await fetch(NOUR_API, { method: 'POST', body: fd, headers: code ? { 'x-access-code': code } : {} });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data.detail || 'Server error ' + r.status); e.status = r.status; throw e; }
+  return data;
+}
 
 const GREETING = "Hi, I'm Nour, your lab instructor. Three labs are open right now. Which one do you want to try?";
 
@@ -33,13 +63,14 @@ function fallbackReply(text) {
   return { text: "I can open one of three labs for you. Pick one below, or tell me what you're studying and I'll suggest one.", labs: true };
 }
 
-const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
+const Chat = forwardRef(function Chat({ onOpenLab, onOpenCustom, disabled }, ref) {
   useLab();
   const [msgs, setMsgs] = useState([{ role: 'nour', text: GREETING, labs: true }]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [, setCapsTick] = useState(0);
-  const logRef = useRef(null), inputRef = useRef(null), abortRef = useRef(null), sampleOff = useRef(false);
+  const [file, setFile] = useState(null), [thumb, setThumb] = useState(null), [serverOk, setServerOk] = useState(false);
+  const logRef = useRef(null), inputRef = useRef(null), abortRef = useRef(null), sampleOff = useRef(false), serverOff = useRef(false), fileRef = useRef(null);
 
   useEffect(() => onCaps(() => setCapsTick(t => t + 1)), []);
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs]);
@@ -52,11 +83,40 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
     note(text) { nourSays(text); }
   }), []);
 
+  const attach = f => { if (!f || !/^image\/(jpeg|png|webp)$/.test(f.type)) { if (f) nourSays('I can read JPG, PNG or WebP pictures of circuits.'); return; } setFile(f); setThumb(URL.createObjectURL(f)); inputRef.current && inputRef.current.focus(); };
+  const clearFile = () => { setFile(null); setThumb(null); if (fileRef.current) fileRef.current.value = ''; };
+  useEffect(() => {
+    const onPaste = e => { const f = [...((e.clipboardData && e.clipboardData.files) || [])][0]; if (f && f.type.startsWith('image/')) attach(f); };
+    window.addEventListener('paste', onPaste); return () => window.removeEventListener('paste', onPaste);
+  }, []);
+
+  // one round trip to Nour's backend: answers a question, or reads a circuit picture and returns a netlist
+  async function viaServer(history, img, fallbackText) {
+    setBusy(true); setMsgs(m => [...m, { role: 'nour', text: '', streaming: true }]);
+    const setLast = o => setMsgs(m => { const c = m.slice(); c[c.length - 1] = { role: 'nour', ...o }; return c; });
+    try {
+      const out = await askServer(history, img); setServerOk(true);
+      setLast({ text: out.reply, netlist: out.netlist || null }); if (S.voice) speak(out.reply);
+      if (out.open_lab && !out.netlist) setTimeout(() => onOpenLab(out.open_lab), 700);
+    } catch (err) {
+      if (img) { setLast({ text: err.status ? 'I could not read that picture: ' + err.message : 'I cannot reach my server right now, so I cannot read pictures. Start the Nour server and try again.' }); }
+      else {
+        if (!err.status) serverOff.current = true;
+        const r = fallbackReply(fallbackText); setLast({ text: err.status === 429 ? err.message : r.text, labs: !!r.labs || err.status === 429 });
+        if (r.open && err.status !== 429) setTimeout(() => onOpenLab(r.open), 500);
+      }
+    } finally { setBusy(false); }
+  }
+
   async function send(text) {
-    text = text.trim(); if (!text || busy || disabled) return;
-    const history = [...msgs, { role: 'user', text }];
-    setMsgs(history); setDraft('');
+    text = text.trim(); const img = file;
+    if ((!text && !img) || busy || disabled) return;
+    if (!text) text = 'Explain this circuit and build it in the lab.';
+    const history = [...msgs, { role: 'user', text, thumb: img ? thumb : null }];
+    setMsgs(history); setDraft(''); setFile(null); setThumb(null); if (fileRef.current) fileRef.current.value = '';
+    if (img) { viaServer(history, img, text); return; }
     const useClaude = caps.sample && !sampleOff.current;
+    if (!useClaude && !serverOff.current) { viaServer(history, null, text); return; }
     if (!useClaude) {
       const r = fallbackReply(text); setBusy(true);
       setTimeout(() => { setBusy(false); nourSays(r.text, r.labs ? { labs: true } : {}); if (r.open) setTimeout(() => onOpenLab(r.open), 500); }, 450);
@@ -99,13 +159,22 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
           <rect className="head" x="7" y="13" width="50" height="44" rx="13" /><rect x="13" y="22" width="38" height="16" rx="8" fill="#2B424C" />
           <circle className="eye" cx="24" cy="30" r="4.5" /><circle className="eye" cx="40" cy="30" r="4.5" /><rect className="mouth" x="24" y="45" width="16" height="3.4" rx="1.7" />
         </svg>
-        <div className="who"><b>Nour</b><span>{caps.sample && !sampleOff.current ? 'Lab instructor · answers with Claude' : 'Lab instructor · offline answers'}</span></div>
+        <div className="who"><b>Nour</b><span>{(caps.sample && !sampleOff.current) || serverOk ? 'Lab instructor · AI answers' : 'Lab instructor · ask or send a circuit'}</span></div>
         {voiceAvailable() && <button type="button" className="ghost small" aria-pressed={S.voice} onClick={() => ACT.voice()}>{S.voice ? 'Voice on' : 'Voice off'}</button>}
       </header>
       <div className="chat-log" ref={logRef} aria-live="polite">
         {msgs.map((m, i) => (
           <div key={i} className={'msg ' + m.role}>
+            {m.thumb && <img className="msg-img" src={m.thumb} alt="Your circuit picture" />}
             <p>{m.text || (m.streaming ? <span className="dots" aria-label="Nour is typing"><i /><i /><i /></span> : '')}</p>
+            {m.netlist && (
+              <div className="circ-card">
+                <div className="circ-svg" dangerouslySetInnerHTML={{ __html: schematicSVG(m.netlist) }} />
+                <button type="button" className="pick" onClick={() => onOpenCustom && onOpenCustom(m.netlist)} disabled={disabled}>
+                  <span className="n">3D</span><span className="t">Open on the bench</span><span className="d">{m.netlist.components.length} parts · click them, flip switches, read V and I</span><span className="go">↗</span>
+                </button>
+              </div>
+            )}
             {m.labs && i === msgs.length - 1 && (
               <div className="lab-picks">
                 {LIVE.map((l, k) => (
@@ -118,10 +187,22 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
           </div>
         ))}
       </div>
+      {DEMO && (
+        <div className="demo-chips" role="group" aria-label="Demo circuits">
+          <span>Demo: no AI backend here. Try a sample circuit:</span>
+          {Object.values(SAMPLES).map(s => (
+            <button type="button" key={s.label} className="ghost small" disabled={busy || disabled}
+              onClick={() => setMsgs(m => [...m, { role: 'user', text: 'Explain this circuit and build it in the lab. (' + s.label + ')' }, { role: 'nour', text: s.reply, netlist: s.netlist }])}>{s.label}</button>
+          ))}
+        </div>
+      )}
       <form className="chat-input" onSubmit={e => { e.preventDefault(); send(draft); }}>
         <label htmlFor="chat-text" className="sr-only">Message Nour</label>
-        <input id="chat-text" ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Ask Nour, or say which experiment you want to do" autoComplete="off" disabled={disabled} />
-        <button type="submit" className="send" disabled={!draft.trim() || busy || disabled}>Send ↗</button>
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={e => attach(e.target.files[0])} />
+        <button type="button" className="attach" aria-label="Attach a picture of a circuit" title="Attach a circuit picture" onClick={() => fileRef.current && fileRef.current.click()} disabled={busy || disabled}>＋</button>
+        {thumb && <span className="attached"><img src={thumb} alt="Attached circuit" /><button type="button" aria-label="Remove picture" onClick={clearFile}>×</button></span>}
+        <input id="chat-text" ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder={thumb ? 'Add a question, or just send the picture' : 'Ask Nour, or attach a circuit picture'} autoComplete="off" disabled={disabled} />
+        <button type="submit" className="send" disabled={(!draft.trim() && !file) || busy || disabled}>Send ↗</button>
       </form>
     </section>
   );

@@ -3,10 +3,12 @@ import Home from './home/Home.jsx';
 import CardFace from './home/CardFace.jsx';
 import LabView from './lab/LabView.jsx';
 import Dashboard from './lab/Dashboard.jsx';
+import CustomLab from './lab/CustomLab.jsx';
+import { loadNetlist } from './lab/customStore.js';
 import { ACT, reduced } from './lab/store.js';
 import { labById } from './labs.js';
 
-const VIEWS = ['home', 'lab', 'dashboard'];
+const VIEWS = ['home', 'lab', 'dashboard', 'custom'];
 const fromHash = () => { const h = location.hash.replace('#', ''); return VIEWS.includes(h) ? h : 'home'; };
 
 export default function App() {
@@ -21,8 +23,8 @@ export default function App() {
     window.addEventListener('hashchange', on); return () => window.removeEventListener('hashchange', on);
   }, []);
   useEffect(() => {
-    document.body.classList.toggle('lock', view === 'home' || view === 'lab');
-    document.title = view === 'lab' ? 'Sim2Skill Lab' : view === 'dashboard' ? 'Sim2Skill Dashboard' : 'Sim2Skill';
+    document.body.classList.toggle('lock', view === 'home' || view === 'lab' || view === 'custom');
+    document.title = view === 'custom' ? 'Sim2Skill Free Bench' : view === 'lab' ? 'Sim2Skill Lab' : view === 'dashboard' ? 'Sim2Skill Dashboard' : 'Sim2Skill';
   }, [view]);
 
   const go = v => { if (v === view) return; history.pushState(null, '', '#' + v); setView(v); window.scrollTo(0, 0); };
@@ -53,20 +55,24 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transit && transit.rect]);
 
+  // Nour read a circuit picture: build it on the free bench
+  const openCustom = nl => { if (loadNetlist(nl)) go('custom'); };
+
   const navLink = (v, label) => <a href={'#' + v} aria-current={view === v ? 'page' : undefined} onClick={e => { e.preventDefault(); go(v); }}>{label}</a>;
 
   return (
     <>
-      <nav className={'nav' + (introDone ? ' ready' : '') + (view === 'lab' ? ' gone' : '')} aria-label="Main">
+      <nav className={'nav' + (introDone ? ' ready' : '') + (view === 'lab' || view === 'custom' ? ' gone' : '')} aria-label="Main">
         <a href="#home" className="wordmark" onClick={e => { e.preventDefault(); go('home'); }}>
           <span className="wmFirst" ref={navName}>Sim2Skill</span><span className="wmRest">&nbsp;Lab.</span>
         </a>
         <div className="links">{navLink('home', 'Home')}<span className="sl">/</span>{navLink('lab', 'Lab')}<span className="sl">/</span>{navLink('dashboard', 'Dashboard')}</div>
       </nav>
       <div className={'view' + (view === 'home' ? '' : ' hidden')} hidden={view !== 'home'}>
-        <Home active={view === 'home'} playIntro={playIntro} onIntroDone={() => setIntroDone(true)} navNameRef={navName} onOpenLab={openLab} transit={transit} ringRef={ringRef} />
+        <Home active={view === 'home'} playIntro={playIntro} onIntroDone={() => setIntroDone(true)} navNameRef={navName} onOpenLab={openLab} onOpenCustom={openCustom} transit={transit} ringRef={ringRef} />
       </div>
       {view === 'lab' && <div className="view fade"><LabView onBack={() => go('home')} onDashboard={() => go('dashboard')} /></div>}
+      {view === 'custom' && <div className="view fade"><CustomLab onBack={() => go('home')} onHome={() => go('home')} /></div>}
       {view === 'dashboard' && <div className="view fade"><Dashboard /></div>}
       {transit && transit.rect && (
         <div className="zoom" ref={zoomRef} style={{ left: transit.rect.left, top: transit.rect.top, width: transit.rect.width, height: transit.rect.height }} aria-hidden="true">

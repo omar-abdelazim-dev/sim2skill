@@ -83,7 +83,7 @@ function Preview({ active }) {
   );
 }
 
-export default function Home({ active, playIntro, onIntroDone, navNameRef, onOpenLab, transit, ringRef }) {
+export default function Home({ active, playIntro, onIntroDone, navNameRef, onOpenLab, onOpenCustom, transit, ringRef }) {
   const [phase, setPhase] = useState(playIntro ? 'loading' : 'done'); // loading → reveal → done
   const [stage, setStage] = useState(playIntro ? 'forming' : 'done');
   const [entered, setEntered] = useState(!playIntro);
@@ -170,7 +170,7 @@ export default function Home({ active, playIntro, onIntroDone, navNameRef, onOpe
         <div className="motes" ref={el => (layers.current.motes = el)}>
           {MOTES.map(([l, t, s, d, dl], i) => <i key={i} style={{ left: `${l}%`, top: `${t}%`, width: s, height: s, animationDuration: `${d}s`, animationDelay: `${dl}s` }} />)}
         </div>
-        <div className="chat-wrap"><Chat ref={chatRef} onOpenLab={onOpenLab} disabled={!!transit} /></div>
+        <div className="chat-wrap"><Chat ref={chatRef} onOpenLab={onOpenLab} onOpenCustom={onOpenCustom} disabled={!!transit} /></div>
       </div>
       <Preview active={entered && phase === 'done' ? choice : null} />
       {playIntro && phase !== 'done' && (

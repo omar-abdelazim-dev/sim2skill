@@ -32,3 +32,29 @@ Inside claude.ai the page asks Claude through the artifact's `sample` capability
 `open_lab` tool to walk the student into a lab. Outside claude.ai (for example `npm run dev`), there is no
 Claude connection, so Nour answers with keyword matching. To use your own backend later, replace the
 `caps.sample(...)` call in `src/home/Chat.jsx` with a call to your API.
+
+## Nour reads circuit pictures (free bench)
+Attach a photo of any circuit in Nour's chat (the + button, or paste an image). Nour explains it, shows the schematic
+in the chat, and "Open on the bench" builds it in 3D: click a part to read its voltage and current, click a switch to flip it.
+Ordinary questions go through the same chat.
+
+```
+# 1. backend (needs a Gemini API key from https://aistudio.google.com/apikey)
+cd server
+pip install fastapi "uvicorn[standard]" python-multipart google-genai
+echo GEMINI_API_KEY=your_key> .env
+python -m uvicorn nour_server:app --port 8000
+
+# 2. the site, in another terminal (the dev server forwards /api to port 8000)
+npm install
+npm run dev
+```
+| Path | What it is |
+| --- | --- |
+| `server/nour_server.py` | `/api/nour`: chat plus optional image, returns reply and netlist. Rate limit, optional access code (`NOUR_ACCESS_CODE`), CORS list (`NOUR_ALLOWED_ORIGINS`) |
+| `src/lab/netlist.js` | Netlist checks, DC solver (modified nodal analysis), auto-layout, schematic SVG |
+| `src/lab/customStore.js`, `CustomLab.jsx`, `sceneCustom.js` | The free bench: state, panels, 3D scene built from any netlist |
+| `tests/test_netlist.mjs` | 28 solver and layout checks (`node tests/test_netlist.mjs`) |
+
+The three guided labs are unchanged. The API key lives only on the server. When the site is hosted somewhere other than
+the backend, set `VITE_NOUR_API` to the backend URL at build time and add the site's address to `NOUR_ALLOWED_ORIGINS`.
