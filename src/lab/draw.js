@@ -7,15 +7,16 @@ export function bands(ohms){ const e = Math.floor(Math.log10(ohms)) - 1, two = M
 
 // Draws the scope grid and trace into any 2D context, inside the rectangle x0,y0,w,h.
 export function plotScope(g, x0, y0, w, h, c, fs, sc){
-  const pl = fs * 2.8, pr = fs * 3.8, pt = fs * 0.9, pb = fs * 2, pw = w - pl - pr, ph = h - pt - pb, X = t => x0 + pl + t / 5 * pw, Y = v => y0 + pt + ph - v / 5 * ph;
+  const pl = fs * 2.8, pr = fs * 3.8, pt = fs * 0.9, pb = fs * 2, pw = w - pl - pr, ph = h - pt - pb, X = t => x0 + pl + t / (sc?Math.max(.1,sc.tau*5):5) * pw, Y = v => y0 + pt + ph - v / (sc?.V||5) * ph;
   g.font = `${fs}px "IBM Plex Mono", monospace`; g.lineWidth = Math.max(1, fs / 11); g.strokeStyle = c.line; g.fillStyle = c.dim; g.textBaseline = 'alphabetic';
-  for (let i = 0; i <= 5; i++) { g.beginPath(); g.moveTo(X(i), Y(5)); g.lineTo(X(i), Y(0)); g.stroke(); g.beginPath(); g.moveTo(X(0), Y(i)); g.lineTo(X(5), Y(i)); g.stroke();
-    g.textAlign = 'center'; g.fillText(i + ' s', X(i), Y(0) + fs * 1.4); g.textAlign = 'right'; g.fillText(i + ' V', X(0) - fs * 0.45, Y(i) + fs * 0.35); }
-  const v63 = 5 * (1 - Math.exp(-1));
-  g.setLineDash([fs * 0.45, fs * 0.36]); g.strokeStyle = c.dim; g.beginPath(); g.moveTo(X(0), Y(v63)); g.lineTo(X(5), Y(v63)); g.stroke(); g.setLineDash([]);
-  g.textAlign = 'left'; g.fillText('63%', X(5) + fs * 0.45, Y(v63) + fs * 0.35);
+  const tEnd=sc?Math.max(.1,sc.tau*5):5,vEnd=sc?.V||5;
+  for (let i = 0; i <= 5; i++) { g.beginPath(); g.moveTo(X(i*tEnd/5), Y(vEnd)); g.lineTo(X(i*tEnd/5), Y(0)); g.stroke(); g.beginPath(); g.moveTo(X(0), Y(i*vEnd/5)); g.lineTo(X(tEnd), Y(i*vEnd/5)); g.stroke();
+    g.textAlign = 'center'; g.fillText((i*tEnd/5).toFixed(2) + ' s', X(i*tEnd/5), Y(0) + fs * 1.4); g.textAlign = 'right'; g.fillText((i*vEnd/5).toFixed(1) + ' V', X(0) - fs * 0.45, Y(i*vEnd/5) + fs * 0.35); }
+  const v63 = vEnd * (1 - Math.exp(-1));
+  g.setLineDash([fs * 0.45, fs * 0.36]); g.strokeStyle = c.dim; g.beginPath(); g.moveTo(X(0), Y(v63)); g.lineTo(X(tEnd), Y(v63)); g.stroke(); g.setLineDash([]);
+  g.textAlign = 'left'; g.fillText('63%', X(tEnd) + fs * 0.45, Y(v63) + fs * 0.35);
   if (!sc) return;
-  const tmax = 5 * scopeP();
+  const tmax = tEnd * scopeP();
   g.strokeStyle = c.trace; g.lineWidth = Math.max(2.5, fs / 4.4); g.lineJoin = 'round'; g.beginPath();
   for (let i = 0; i <= 200; i++) { const t = tmax * i / 200, v = sc.V * (1 - Math.exp(-t / sc.tau)); if (i) g.lineTo(X(t), Y(v)); else g.moveTo(X(t), Y(v)); }
   g.stroke();
@@ -76,6 +77,7 @@ export function benchSVG(){
 export function partIcon(id){ const p = PARTS[id];
   if (p.kind === 'res') return `<svg viewBox="0 0 40 16" aria-hidden="true"><line class="wire" x1="0" y1="8" x2="40" y2="8" style="stroke-width:1.5"/>${resistorG(6, 2, 28, 12, p.ohms)}</svg>`;
   if (p.kind === 'wire') return `<svg viewBox="0 0 40 16" aria-hidden="true"><line class="wire" x1="2" y1="8" x2="38" y2="8"/></svg>`;
+  if (p.kind === 'diode') return `<svg viewBox="0 0 40 16" aria-hidden="true"><path d="M2 8 H14 M26 8 H38 M14 2 L25 8 14 14 Z M26 1 V15" stroke="#d9e9ef" fill="#668798" stroke-width="2"/></svg>`;
   if (p.kind === 'led') return `<svg viewBox="0 0 40 16" aria-hidden="true"><line class="wire" x1="2" y1="8" x2="38" y2="8" style="stroke-width:1.5"/><polygon points="14,2 14,14 25,8" fill="#FF4B3A" stroke="var(--ink)" stroke-width="1.5"/><line class="wire" x1="26" y1="2" x2="26" y2="14" style="stroke-width:2"/></svg>`;
   return `<svg viewBox="0 0 40 16" aria-hidden="true"><path class="wire" style="stroke-width:1.5" d="M2 8 H17 M23 8 H38"/><path class="wire" style="stroke-width:3" d="M17 2 V14 M23 2 V14"/></svg>`; }
 

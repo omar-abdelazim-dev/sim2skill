@@ -1,0 +1,1 @@
+export async function api(path,method='GET',data){const r=await fetch('/api/'+path,{method,headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});const value=await r.json().catch(()=>({error:'The server is unavailable. Restart npm run dev.'}));if(!r.ok)throw Error(value.error||'Request failed');return value;}

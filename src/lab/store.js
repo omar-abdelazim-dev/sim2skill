@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import CORE from './core.js';
 import { caps } from '../claude.js';
+import { BASE, buildDefinition, startingBench, runConfigured } from '../../shared/labConfig.js';
 
 const { PARTS, EXPERIMENTS, MISTAKES, simulate, detect, hintText, partLabel, fmtV } = CORE;
 
@@ -11,9 +12,9 @@ export const EXAMPLE = { students: 28, completed: { ohm: 26, led: 23, rc: 19 },
   counts: { 'led:led_reversed': 17, 'ohm:current_too_high': 14, 'led:no_resistor': 12, 'rc:tau_too_short': 11, 'led:resistor_too_small': 9, 'rc:cap_reversed': 8, 'ohm:short_circuit': 6, 'rc:tau_too_long': 5, 'ohm:open_circuit': 4, 'led:over_rated': 3 } };
 const blank = V => ({ V, R: null, D: null, reversed: false, burnt: false });
 
-export const S = { exp: 'ohm', bench: { ohm: blank(9), led: blank(9), rc: blank(5) }, closed: false, status: 'idle', active: 'R', last: null,
+export const S = { exp: 'ohm', bench: Object.fromEntries(Object.keys(EXPERIMENTS).map(id=>[id,startingBench(id)])), lab: null, closed: false, status: 'idle', active: 'R', last: null,
   lastMistake: {}, level: {}, ctx: {}, completed: {}, stats: { attempts: 0, mistakes: 0, hints: 0, counts: {} }, log: [], say: EXPERIMENTS.ohm.intro,
-  question: null, voice: false, src: 'example', csv: false, mode: 'walk',
+  question: null, voice: false, src: 'example', csv: false, mode: '3d',
   panels: { meters: true, nour: true, kit: true } };
 // runtime values that are not part of the lab record
 export const rt = { scope: null, speaking: false, lab: null, entering: false, held: null, heldRev: false, aim: null, joy: null };
@@ -55,7 +56,7 @@ function firstEmpty() { const b = S.bench[S.exp]; const sl = EXPERIMENTS[S.exp].
 function slotName(id) { return EXPERIMENTS[S.exp].slots.find(s => s.id === id).name.toLowerCase(); }
 
 function evaluate() {
-  const exp = S.exp, b = S.bench[exp], sim = simulate(exp, b), m = detect(exp, b, sim);
+  const exp = S.exp, b = S.bench[exp], outcome=runConfigured(exp,S.lab?.config,b),sim=outcome.result,m=outcome.diagnosis;
   S.stats.attempts++;
   let level = 1;
   if (m !== 'success') {
@@ -70,7 +71,7 @@ function evaluate() {
   else if (m === 'burnt_led') S.status = 'burnt';
   else if (m === 'cap_reversed') { S.closed = false; S.status = 'stopped'; }
   else if (m === 'success') { S.status = 'success'; S.completed[exp] = true; S.question = { picked: null }; }
-  rt.scope = (exp === 'rc' && sim.status === 'ok') ? { tau: sim.tau, V: b.V, R: PARTS[b.R].ohms, t0: performance.now(), dur: 1700, done: reduced } : null;
+  rt.scope = (exp === 'rc' && sim.status === 'ok') ? { tau: sim.tau, V: b.V, R: CORE.effective(b.R,b).ohms, t0: performance.now(), dur: 1700, done: reduced } : null;
   logLine(`Switch closed → detector: <b>${m}</b>`);
   say(hintText(exp, m, level, b, sim), true);
   bump();
@@ -79,21 +80,24 @@ function evaluate() {
 }
 
 export const ACT = {
+  loadLab(lab) { for(const id of Object.keys(BASE))EXPERIMENTS[id]=structuredClone(BASE[id]);const e=buildDefinition(lab.template,lab.config);e.title=lab.title;e.intro=lab.description+' '+e.goal;EXPERIMENTS[lab.template]=e;S.lab=lab;S.exp=lab.template;S.bench[lab.template]=startingBench(lab.template,lab.config);S.last=null;S.closed=false;S.status='idle';S.active='R';S.completed={};S.lastMistake={};S.level={};S.ctx={};S.question=null;rt.scope=null;rt.held=null;rt.heldRev=false;S.panels={meters:true,nour:true,kit:true};say(e.intro,false);bump(); },
+  pot(v) { const b=S.bench[S.exp];touchBench();b.pot=Math.max(100,Math.min(10000,Number(v)));bump(); },
   enter(id) { S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
-    logLine(`Entered from the lab ring: ${EXPERIMENTS[id].title}`); say(EXPERIMENTS[id].intro, true); rt.entering = true; bump(); if (rt.lab) { rt.lab.flyIn(id); rt.entering = false; } },
-  exp(id) { if (id === S.exp) return; S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
+    logLine('Entered dedicated experiment room'); say(EXPERIMENTS[id].intro, true); rt.entering = true; bump(); if (rt.lab) { rt.lab.flyIn(id); rt.entering = false; } },
+  exp(id) { if (S.lab && id !== S.lab.template) return; if (id === S.exp) return; S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
     logLine(`Walked to bench: ${EXPERIMENTS[id].title}`); say(EXPERIMENTS[id].intro, true); bump(); if (rt.lab) rt.lab.goTo(id, true); },
   slot(id) { S.active = id; bump(); },
   // walking mode: the student moves to a bench, picks parts off the table and places them by hand
-  setBench(id) { if (id === S.exp) return; S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
+  setBench(id) { if (S.lab && id !== S.lab.template) return; if (id === S.exp) return; S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
     logLine(`Walked to bench: ${EXPERIMENTS[id].title}`); say(EXPERIMENTS[id].intro, true); bump(); },
-  take(id) { const sl = EXPERIMENTS[S.exp].slots.find(x => x.options.includes(id)); if (!sl) return;
+  take(id) { const slots=EXPERIMENTS[S.exp].slots;const sl=slots.find(x=>x.id===S.active&&x.options.includes(id))||slots.find(x=>!S.bench[S.exp][x.id]&&x.options.includes(id))||slots.find(x=>x.options.includes(id)); if (!sl) return;
     rt.held = { id, slot: sl.id, exp: S.exp }; rt.heldRev = false; S.active = sl.id;
     logLine(`Picked up ${partLabel(id)}`); say(`You picked up the ${partLabel(id)}. Put it in the ${sl.name.toLowerCase()} slot on the bench.`, false); bump(); },
   use(slotId) {
     const b = S.bench[S.exp], sl = EXPERIMENTS[S.exp].slots.find(x => x.id === slotId), name = sl.name.toLowerCase();
     if (rt.held) {
       if (rt.held.exp !== S.exp) { say('That part belongs to another bench. Take one from the parts table next to this bench.', false); bump(); return; }
+      if (sl.options.includes(rt.held.id))rt.held.slot=slotId;
       if (rt.held.slot !== slotId) { say(`The ${partLabel(rt.held.id)} goes in the ${EXPERIMENTS[S.exp].slots.find(x => x.id === rt.held.slot).name.toLowerCase()} slot.`, false); bump(); return; }
       touchBench(); b[slotId] = rt.held.id; if (slotId === 'D') { b.reversed = rt.heldRev; b.burnt = false; }
       logLine(`Placed ${partLabel(rt.held.id)} in the ${name} slot${slotId === 'D' && rt.heldRev ? ' (flipped)' : ''}`);
@@ -115,13 +119,13 @@ export const ACT = {
   // show or hide the HUD panels so the student can see the whole lab
   panel(name) { S.panels[name] = !S.panels[name]; bump(); },
   hud() { const anyOn = Object.values(S.panels).some(Boolean); Object.keys(S.panels).forEach(k => { S.panels[k] = !anyOn; }); bump(); },
-  part(id) { const b = S.bench[S.exp], sl = S.active; touchBench(); b[sl] = id; if (sl === 'D') { b.reversed = false; b.burnt = false; }
+  part(id) { const b = S.bench[S.exp], sl = S.active; if(!EXPERIMENTS[S.exp].slots.find(s=>s.id===sl)?.options.includes(id))return; touchBench(); b[sl] = id; if (sl === 'D') { b.reversed = false; b.burnt = false; }
     logLine(`Placed ${partLabel(id)} in the ${slotName(sl)} slot`); S.active = firstEmpty(); bump(); },
   flip() { const b = S.bench[S.exp]; touchBench(); b.reversed = !b.reversed; logLine(`Flipped the ${slotName('D')}`); bump(); },
   remove() { const b = S.bench[S.exp], sl = S.active; touchBench(); logLine(`Removed ${partLabel(b[sl])}`); b[sl] = null; if (sl === 'D') { b.reversed = false; b.burnt = false; } bump(); },
   replace() { const b = S.bench[S.exp]; touchBench(); b.burnt = false; logLine('Replaced the burnt LED'); bump(); },
   sw() { if (S.closed) { S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; logLine('Switch opened'); bump(); } else evaluate(); },
-  reset() { const E = EXPERIMENTS[S.exp]; S.bench[S.exp] = blank(E.volt.fixed || E.volt.def); S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R';
+  reset() { const E = EXPERIMENTS[S.exp]; S.bench[S.exp] = startingBench(S.exp,S.lab?.config); S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R';
     logLine('Bench reset'); say(E.intro, false); bump(); },
   more() { const exp = S.exp, m = S.lastMistake[exp], c = S.ctx[exp]; if (!m || m === 'success' || !c) return;
     S.level[exp] = Math.min((S.level[exp] || 1) + 1, 3); S.stats.hints++; if (S.last) S.last.level = S.level[exp];

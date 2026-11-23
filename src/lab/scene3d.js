@@ -10,7 +10,7 @@ export function createLab3D(host){
   const renderer = new T.WebGLRenderer({antialias:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); renderer.outputEncoding = T.sRGBEncoding;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = T.PCFSoftShadowMap;
-  const el = renderer.domElement; el.setAttribute('role', 'img'); el.setAttribute('aria-label', '3D lab room with three benches. Use the slot buttons and the Close switch button below to operate the bench.');
+  const el = renderer.domElement; el.setAttribute('role', 'img'); el.setAttribute('aria-label', 'Dedicated 3D room for this experiment. Use the slot buttons and the Close switch button below to operate the bench.');
   host.insertBefore(el, host.firstChild);
   const scene = new T.Scene(); scene.background = new T.Color(0xC7D3D9); scene.fog = new T.Fog(0xC7D3D9, 16, 36);
   const camera = new T.PerspectiveCamera(45, 1, 0.1, 80);
@@ -33,7 +33,8 @@ export function createLab3D(host){
   const ball = (r, m, x, y, z, p, s) => add(new T.SphereGeometry(r, 20, 14), m, x, y, z, p, s);
   const UP = new T.Vector3(0, 1, 0), V3 = (x, y, z) => new T.Vector3(x, y, z);
   const seg = (a, b, r, m, p) => { const d = b.clone().sub(a), len = d.length(); const o = add(new T.CylinderGeometry(r, r, len, 10), m, 0, 0, 0, p); o.position.copy(a).addScaledVector(d, 0.5); o.quaternion.setFromUnitVectors(UP, d.normalize()); return o; };
-  const clear = grp => { while (grp.children.length) { const o = grp.children[0]; grp.remove(o); o.traverse(n => { if (n.geometry) n.geometry.dispose(); if (n.material && n.userData.own) n.material.dispose(); }); } };
+  const sharedMaterials=new Set(Object.values(mat));
+  const clear = grp => { while (grp.children.length) { const o = grp.children[0]; grp.remove(o); o.traverse(n => { if (n.geometry) n.geometry.dispose(); for(const m of Array.isArray(n.material)?n.material:[n.material])if(m&&!sharedMaterials.has(m))m.dispose(); }); } };
   function radial(rgb){ const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d'), gr = g.createRadialGradient(64, 64, 2, 64, 64, 62);
     gr.addColorStop(0, `rgba(${rgb},0.95)`); gr.addColorStop(0.35, `rgba(${rgb},0.45)`); gr.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new T.CanvasTexture(c); }
   const texRed = radial('255,60,40'), texYel = radial('255,205,70'), texSmoke = radial('70,78,84');
@@ -55,19 +56,19 @@ export function createLab3D(host){
   // room
   (function room(){
     const fc = document.createElement('canvas'); fc.width = fc.height = 128; const g = fc.getContext('2d'); g.fillStyle = '#B4C0C6'; g.fillRect(0, 0, 128, 128); g.strokeStyle = '#A3B0B7'; g.lineWidth = 3; g.strokeRect(0, 0, 128, 128);
-    const ft = new T.CanvasTexture(fc); ft.wrapS = ft.wrapT = T.RepeatWrapping; ft.repeat.set(27, 14); ft.encoding = T.sRGBEncoding;
-    const floor = add(new T.PlaneGeometry(27, 14), new T.MeshStandardMaterial({map:ft, roughness:0.9}), 0, 0, 4.8); floor.rotation.x = -Math.PI / 2; floor.castShadow = false;
-    add(new T.PlaneGeometry(27, 6.4), mat.wall, 0, 3.2, -2.2).castShadow = false;
-    const wl = add(new T.PlaneGeometry(14, 6.4), mat.wall, -13.5, 3.2, 4.8); wl.rotation.y = Math.PI / 2; wl.castShadow = false;
-    const wr = add(new T.PlaneGeometry(14, 6.4), mat.wall, 13.5, 3.2, 4.8); wr.rotation.y = -Math.PI / 2; wr.castShadow = false;
-    box(27, 0.16, 0.05, mat.trim, 0, 0.08, -2.17); box(27, 0.1, 0.04, mat.yellow, 0, 1.2, -2.18);
+    const ft = new T.CanvasTexture(fc); ft.wrapS = ft.wrapT = T.RepeatWrapping; ft.repeat.set(14, 14); ft.encoding = T.sRGBEncoding;
+    const floor = add(new T.PlaneGeometry(14, 14), new T.MeshStandardMaterial({map:ft, roughness:0.9}), 0, 0, 4.8); floor.rotation.x = -Math.PI / 2; floor.castShadow = false;
+    add(new T.PlaneGeometry(14, 6.4), mat.wall, 0, 3.2, -2.2).castShadow = false;
+    const wl = add(new T.PlaneGeometry(14, 6.4), mat.wall, -7, 3.2, 4.8); wl.rotation.y = Math.PI / 2; wl.castShadow = false;
+    const wr = add(new T.PlaneGeometry(14, 6.4), mat.wall, 7, 3.2, 4.8); wr.rotation.y = -Math.PI / 2; wr.castShadow = false;
+    box(14, 0.16, 0.05, mat.trim, 0, 0.08, -2.17); box(14, 0.1, 0.04, mat.yellow, 0, 1.2, -2.18);
     [-3.75, 3.75].forEach((x, k) => { // storage between the benches
       box(2.3, 0.95, 0.62, mat.cab, x, 0.475, -1.85); box(2.34, 0.05, 0.66, mat.top, x, 0.975, -1.85);
       [-0.58, 0.58].forEach(dx => box(0.04, 0.3, 0.02, mat.steel, x + dx * 0.9, 0.55, -1.53));
       [2.0, 2.75].forEach((y, r) => { box(2.3, 0.06, 0.42, mat.steel, x, y, -1.97);
         [0x3E7BFA, 0xF2B705, 0xD9342B, 0x1B7F53, 0x8FA6B0].forEach((col, i) => { if ((i + r + k) % 5 === 4) return; box(0.34, 0.24 + ((i * 7 + r * 3) % 3) * 0.06, 0.3, M(col), x - 0.86 + i * 0.43, y + 0.16 + ((i * 7 + r * 3) % 3) * 0.03, -1.97); }); });
     });
-    box(1.5, 3.1, 0.08, M(0x7B8C95), 11.6, 1.55, -2.15); ball(0.07, mat.metal, 11.05, 1.5, -2.08); // door
+    box(1.5, 3.1, 0.08, M(0x7B8C95), 5.8, 1.55, -2.15); ball(0.07, mat.metal, 5.25, 1.5, -2.08); // door
   })();
 
   const xL = -1.45, xR = 1.45, zB = -0.72, zF = 0.72, WY = 1.085;
@@ -80,12 +81,15 @@ export function createLab3D(host){
     if (p.kind === 'res') {
       const rz = o => { o.rotation.z = Math.PI / 2; return o; };
       rz(cyl(0.1, 0.1, 0.44, mat.body, 0, 0.11, 0, g)); ball(0.1, mat.body, -0.22, 0.11, 0, g).scale.x = 0.6; ball(0.1, mat.body, 0.22, 0.11, 0, g).scale.x = 0.6;
+      if(p.variable){cyl(.07,.07,.1,mat.black,0,.27,0,g);}
       bands(p.ohms).concat(['#C9A227']).forEach((c, i) => rz(cyl(0.104, 0.104, 0.046, M(new T.Color(c).getHex(), {roughness:0.5}), i < 3 ? -0.15 + i * 0.085 : 0.15, 0.11, 0, g)));
       seg(V3(-0.42, 0.11, 0), V3(-0.26, 0.11, 0), 0.016, mat.metal, g); seg(V3(0.42, 0.11, 0), V3(0.26, 0.11, 0), 0.016, mat.metal, g);
     } else if (p.kind === 'wire') {
       seg(V3(-0.36, 0.04, 0), V3(0.36, 0.04, 0), 0.03, mat.red, g); ball(0.035, mat.metal, -0.36, 0.04, 0, g); ball(0.035, mat.metal, 0.36, 0.04, 0, g);
+    } else if (p.kind === 'diode') {
+      box(.35,.13,.15,mat.black,0,.12,0,g);box(.04,.14,.16,mat.stripe,.1,.12,0,g);seg(V3(-.4,.12,0),V3(.4,.12,0),.012,mat.metal,g);
     } else if (p.kind === 'led') {
-      const m = M(0xE5322B, {roughness:0.25}); cyl(0.13, 0.13, 0.18, m, 0, 0.23, 0, g); ball(0.13, m, 0, 0.32, 0, g); cyl(0.155, 0.155, 0.03, m, 0, 0.14, 0, g);
+      const m = M(p.color||0xE5322B, {roughness:0.25}); cyl(0.13, 0.13, 0.18, m, 0, 0.23, 0, g); ball(0.13, m, 0, 0.32, 0, g); cyl(0.155, 0.155, 0.03, m, 0, 0.14, 0, g);
       seg(V3(-0.05, 0, 0), V3(-0.05, 0.13, 0), 0.016, mat.metal, g); seg(V3(0.05, 0.03, 0), V3(0.05, 0.13, 0), 0.016, mat.metal, g);
     } else {
       cyl(0.17, 0.17, 0.42, mat.cap, 0, 0.21, 0, g); cyl(0.15, 0.15, 0.02, mat.metal, 0, 0.43, 0, g); box(0.16, 0.36, 0.02, mat.stripe, 0, 0.21, 0.166, g);
@@ -94,8 +98,8 @@ export function createLab3D(host){
   }
 
   function station(exp, sx){
-    const E = EXPERIMENTS[exp], hasD = E.slots.length > 1, g = new T.Group(); g.position.x = sx; scene.add(g);
-    const st = {exp, x:sx, g, hasD, key:null, lever:0.62, bright:0, flow:false, flashUntil:0, burnRef:null, smokeT:0};
+    const E = EXPERIMENTS[exp], hasD = E.slots.length > 1 && exp!=='parallel', g = new T.Group(); g.position.x = sx; scene.add(g);
+    const st = {exp, x:sx, g, hasD:E.slots.length>1, key:null, lever:0.62, bright:0, flow:false, flashUntil:0, burnRef:null, smokeT:0};
     // bench, board, wall screen, lamp, stool
     box(5.2, 0.12, 2.4, mat.top, 0, 0.94, 0, g); box(5.2, 0.05, 0.06, mat.yellow, 0, 0.975, 1.2, g);
     [[-2.4, -1], [2.4, -1], [-2.4, 1], [2.4, 1]].forEach(p => box(0.12, 0.88, 0.12, mat.steel, p[0], 0.44, p[1], g)); box(4.8, 0.06, 0.06, mat.steel, 0, 0.3, -1, g);
@@ -126,11 +130,17 @@ export function createLab3D(host){
     st.padR = box(1.14, 0.012, 0.46, padM(), 0.35, 1.057, zB, g, false);
     st.rG = new T.Group(); st.rG.position.set(0.35, 0, zB); g.add(st.rG); st.rLabel = label(g, 0.35, 1.62, zB, 0.72);
     hit(g, [1.15, 0.7, 0.6], [0.35, 1.36, zB], {act:'slot', id:'R', exp});
-    if (hasD) {
-      cyl(0.045, 0.045, 0.12, mat.metal, xR, 1.11, -0.38, g); cyl(0.045, 0.045, 0.12, mat.metal, xR, 1.11, 0.38, g);
+    if (E.slots.length>1) {
+      if(exp!=='parallel'){cyl(0.045, 0.045, 0.12, mat.metal, xR, 1.11, -0.38, g); cyl(0.045, 0.045, 0.12, mat.metal, xR, 1.11, 0.38, g);}
       st.padD = box(0.46, 0.012, 1.0, padM(), xR, 1.057, 0, g, false);
       st.dG = new T.Group(); st.dG.position.set(xR, 0, 0); g.add(st.dG); st.dLabel = label(g, xR, 2.06, 0, 0.72); st.plus = label(g, xR + 0.3, 1.3, -0.38, 0.4);
       hit(g, [0.75, 1.0, 1.05], [xR, 1.5, 0], {act:'slot', id:'D', exp});
+    }
+    if(exp==='parallel'){
+      st.dG.position.set(.35,0,0);st.padD.position.set(.35,1.057,0);st.padD.scale.set(2.2,1,.46);st.dLabel.sprite.position.set(.35,1.9,0);
+      const h=clickables.find(o=>o.userData.exp===exp&&o.userData.act==='slot'&&o.userData.id==='D');h.position.set(.35,1.5,0);h.scale.set(1.7,1,.6);
+      for(const x of [-.1,.8])seg(P(x,zB),P(x,0),.03,mat.red,g);
+      seg(P(-.1,0),P(.05,0),.03,mat.red,g);seg(P(.65,0),P(.8,0),.03,mat.red,g);
     }
     // ammeter
     box(0.64, 0.2, 0.4, mat.yellow, 0, 1.15, zF, g); box(0.46, 0.02, 0.24, mat.dark, 0, 1.255, zF, g); st.amm = label(g, 0, 1.6, zF, 0.78, true);
@@ -142,13 +152,13 @@ export function createLab3D(host){
     st.smoke = []; for (let i = 0; i < 6; i++) { const sp = new T.Sprite(new T.SpriteMaterial({map:texSmoke, transparent:true, depthWrite:false, opacity:0})); sp.visible = false; sp.renderOrder = 6; g.add(sp); st.smoke.push(sp); }
     hit(g, [5.2, 2.4, 2.6], [0, 1.6, 0], {act:'station', exp});
     // parts table beside the bench: every part this bench takes, ready to pick up
-    const tx = 3.4, opts = []; E.slots.forEach(sl => sl.options.forEach(id => opts.push(id)));
-    box(1.1, 0.06, 1.8, mat.top, tx, 0.9, 0, g); [[-0.48, -0.82], [0.48, -0.82], [-0.48, 0.82], [0.48, 0.82]].forEach(q => box(0.06, 0.87, 0.06, mat.steel, tx + q[0], 0.435, q[1], g));
+    const tx = 3.4, opts = [...new Set(E.slots.flatMap(sl=>sl.options))];
+    const trayDepth=Math.max(1.8,Math.ceil(opts.length/2)*.43);box(1.1, 0.06, trayDepth, mat.top, tx, 0.9, 0, g); [[-0.48, -0.82], [0.48, -0.82], [-0.48, 0.82], [0.48, 0.82]].forEach(q => box(0.06, 0.87, 0.06, mat.steel, tx + q[0], 0.435, q[1], g));
     box(1.1, 0.03, 0.04, mat.yellow, tx, 0.94, 0.9, g);
     label(g, tx, 1.95, 0, 0.6, true).set('Parts');
-    const rows = Math.ceil(opts.length / 2); st.tray = {};
+    const rows = Math.ceil(opts.length / 2); st.trayDepth=trayDepth;st.tray = {};
     opts.forEach((id, i) => {
-      const px = tx - 0.26 + (i % 2) * 0.52, pz = rows > 1 ? -0.66 + Math.floor(i / 2) * (1.32 / (rows - 1)) : 0;
+      const px = tx - 0.26 + (i % 2) * 0.52, pz = rows > 1 ? -trayDepth/2+.22+Math.floor(i/2)*.43 : 0;
       box(0.46, 0.012, 0.32, M(0x2B424C), px, 0.937, pz, g, false);
       const m = makePart(id); m.position.set(px, 0.945, pz); m.scale.setScalar(0.72); g.add(m);
       const lb = label(g, px, 1.3, pz, 0.36); lb.set(partLabel(id));
@@ -159,28 +169,31 @@ export function createLab3D(host){
   }
 
   function fillR(st, b){
-    clear(st.rG); const p = b.R ? PARTS[b.R] : null;
+    clear(st.rG); const p = b.R ? CORE.effective(b.R,b) : null;
     if (!p) { box(0.5, 0.18, 0.2, mat.ghost, 0, 1.2, 0, st.rG, false); st.rLabel.set('Resistor slot'); return; }
     if (p.kind === 'wire') { seg(V3(-0.45, WY, 0), V3(0.45, WY, 0), 0.03, mat.red, st.rG); st.rLabel.set('wire'); return; }
     const rz = o => { o.rotation.z = Math.PI / 2; return o; };
     rz(cyl(0.1, 0.1, 0.44, mat.body, 0, 1.21, 0, st.rG)); ball(0.1, mat.body, -0.22, 1.21, 0, st.rG).scale.x = 0.6; ball(0.1, mat.body, 0.22, 1.21, 0, st.rG).scale.x = 0.6;
     bands(p.ohms).concat(['#C9A227']).forEach((c, i) => { const m = M(new T.Color(c).getHex(), {roughness:0.5}); const o = rz(cyl(0.104, 0.104, 0.046, m, i < 3 ? -0.15 + i * 0.085 : 0.15, 1.21, 0, st.rG)); o.userData.own = true; });
     seg(V3(-0.45, 1.13, 0), V3(-0.26, 1.21, 0), 0.016, mat.metal, st.rG); seg(V3(0.45, 1.13, 0), V3(0.26, 1.21, 0), 0.016, mat.metal, st.rG);
-    st.rLabel.set(partLabel(b.R));
+    st.rLabel.set(b.R==='pot'?CORE.fmtR(b.pot||1000)+' variable':partLabel(b.R));
   }
-  function dText(st, b){ const p = b.D ? PARTS[b.D] : null; if (!p) return EXPERIMENTS[st.exp].slots[1].name + ' slot'; return p.kind === 'led' ? (b.burnt ? 'LED burnt out' : 'Red LED') : partLabel(b.D); }
+  function dText(st, b){ const p = b.D ? PARTS[b.D] : null; if (!p) return EXPERIMENTS[st.exp].slots[1].name + ' slot'; return p.kind === 'led' ? (b.burnt ? 'LED burnt out' : p.label) : partLabel(b.D); }
   function fillD(st, b){
     clear(st.dG); st.led = null; const p = b.D ? PARTS[b.D] : null;
     st.dLabel.set(dText(st, b), b.burnt ? '#BF3A31' : undefined);
     if (!p) { box(0.3, 0.34, 0.5, mat.ghost, 0, 1.25, 0, st.dG, false); st.plus.set(''); return; }
+    if(p.kind==='res'||p.kind==='diode'){
+      st.plus.set('');const m=makePart(b.D);m.position.y=1.09;m.rotation.y=st.exp==='parallel'?0:Math.PI/2;if(p.kind==='diode'&&b.reversed)m.rotation.y+=Math.PI;st.dG.add(m);return;
+    }
     st.plus.set('+'); st.plus.sprite.position.z = b.reversed ? 0.38 : -0.38;
     if (p.kind === 'led') {
-      const m = new T.MeshStandardMaterial({color:b.burnt ? 0x3A3F42 : 0xE5322B, roughness:0.25, transparent:true, opacity:b.burnt ? 1 : 0.92, emissive:0xff2a1a, emissiveIntensity:0});
+      const m = new T.MeshStandardMaterial({color:b.burnt ? 0x3A3F42 : p.color||0xE5322B, roughness:0.25, transparent:true, opacity:b.burnt ? 1 : 0.92, emissive:p.color||0xff2a1a, emissiveIntensity:0});
       const own = o => { o.userData.own = true; return o; };
       own(cyl(0.13, 0.13, 0.18, m, 0, 1.38, 0, st.dG)); own(ball(0.13, m, 0, 1.47, 0, st.dG)); own(cyl(0.155, 0.155, 0.03, m, 0, 1.285, 0, st.dG));
       seg(V3(0, 1.13, -0.38), V3(0, 1.28, -0.06), 0.016, mat.metal, st.dG); seg(V3(0, 1.13, 0.38), V3(0, 1.28, 0.06), 0.016, mat.metal, st.dG);
-      const glow = new T.Sprite(new T.SpriteMaterial({map:texRed, transparent:true, depthWrite:false, opacity:0})); glow.position.set(0, 1.44, 0); glow.scale.set(0.01, 0.01, 1); st.dG.add(glow);
-      const light = new T.PointLight(0xff3a22, 0, 3.2, 2); light.position.set(0, 1.62, 0); st.dG.add(light);
+      const glow = new T.Sprite(new T.SpriteMaterial({map:texRed,color:p.color||0xffffff, transparent:true, depthWrite:false, opacity:0})); glow.position.set(0, 1.44, 0); glow.scale.set(0.01, 0.01, 1); st.dG.add(glow);
+      const light = new T.PointLight(p.color||0xff3a22, 0, 3.2, 2); light.position.set(0, 1.62, 0); st.dG.add(light);
       st.led = {m, glow, light, burnt:b.burnt, cur:0};
     } else {
       cyl(0.17, 0.17, 0.42, mat.cap, 0, 1.36, 0, st.dG); cyl(0.15, 0.15, 0.02, mat.metal, 0, 1.58, 0, st.dG);
@@ -198,6 +211,10 @@ export function createLab3D(host){
     g.fillStyle = '#FFFFFF'; g.font = '700 72px "Barlow Condensed", "Arial Narrow", sans-serif'; g.fillText(E.title, 44, 140);
     g.fillStyle = '#B9C9D0'; g.font = '400 32px "IBM Plex Sans", system-ui, sans-serif'; wrap(g, E.goal, 44, 190, 940, 40);
     if (st.exp === 'rc') { plotScope(g, 30, 232, 964, 268, {line:'#2B424C', dim:'#8FA6B0', ink:'#FFFFFF', trace:'#F2B705'}, 22, active ? rt.scope : null); return; }
+    if(['series','parallel','divider','diode'].includes(st.exp)){
+      g.fillStyle='#A1C6D6';g.font='400 32px monospace';g.fillText(st.exp==='parallel'?'Two branches · shared voltage':st.exp==='divider'?'Unloaded output across R2':'Single isolated circuit',44,290);
+      g.fillStyle='#F2B705';g.font='500 60px monospace';g.fillText(sim?fmtI(sim.I):'Switch open',44,375);if(sim?.vD!==undefined)g.fillText('Vout '+fmtV(sim.vD),44,460);return;
+    }
     // reading plus a range bar
     const max = st.exp === 'ohm' ? 20 : 40, x0 = 44, w = 936, y = 420, X = mA => x0 + Math.min(mA, max) / max * w;
     const zone = (a, c, col) => { g.fillStyle = col; g.fillRect(X(a), y, X(c) - X(a), 26); };
@@ -225,7 +242,7 @@ export function createLab3D(host){
   const jet = new T.Sprite(new T.SpriteMaterial({map:texYel, transparent:true, depthWrite:false, opacity:0.8})); jet.position.set(0, -0.72, 0); jet.scale.set(0.55, 0.3, 1); bot.add(jet);
   const botName = label(bot, 0, 0.72, 0, 0.5, true); botName.set('Nour');
 
-  station('ohm', -7.5); station('led', 0); station('rc', 7.5);
+  station(S.exp, 0);
 
   // the student: first-person camera, a lab-coat sleeve and whatever part is in hand
   scene.add(camera); camera.rotation.order = 'YXZ';
@@ -235,17 +252,17 @@ export function createLab3D(host){
   const held = new T.Group(); held.position.set(-0.02, 0.06, -0.12); hand.add(held); let heldKey = '';
   const player = {pos:V3(0, 1.62, 2.9), yaw:0, pitch:-0.3, bob:0}, keys = {};
   const blocks = [];
-  Object.keys(stations).forEach(k => { const x = stations[k].x; blocks.push([x - 2.75, x + 2.75, -1.4, 1.4], [x + 2.8, x + 4.0, -0.95, 0.95], [x - 1.2, x - 0.6, 1.85, 2.45]); });
+  Object.keys(stations).forEach(k => { const x = stations[k].x; blocks.push([x - 2.75, x + 2.75, -1.4, 1.4], [x + 2.8, x + 4.0, -stations[k].trayDepth/2, stations[k].trayDepth/2], [x - 1.2, x - 0.6, 1.85, 2.45]); });
   [-3.75, 3.75].forEach(x => blocks.push([x - 1.2, x + 1.2, -2.3, -1.45]));
   function collide(p){
-    const r = 0.3; p.x = Math.max(-13.1, Math.min(13.1, p.x)); p.z = Math.max(-1.8, Math.min(11.4, p.z));
+    const r = 0.3; p.x = Math.max(-6.6, Math.min(6.6, p.x)); p.z = Math.max(-1.8, Math.min(11.4, p.z));
     blocks.forEach(([x0, x1, z0, z1]) => {
       if (p.x < x0 - r || p.x > x1 + r || p.z < z0 - r || p.z > z1 + r) return;
       const push = [[x0 - r - p.x, 0], [x1 + r - p.x, 0], [0, z0 - r - p.z], [0, z1 + r - p.z]].sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]))[0];
       p.x += push[0]; p.z += push[1];
     });
   }
-  const kd = e => { if (e.target && e.target.closest && e.target.closest('input, textarea')) return; keys[e.code] = true; if (S.mode === 'walk' && /^Arrow/.test(e.code)) e.preventDefault(); };
+  const kd = e => { if(document.querySelector('dialog[open]'))return;if (e.target && e.target.closest && e.target.closest('input, textarea, select')) return; keys[e.code] = true; if (S.mode === 'walk' && /^Arrow/.test(e.code)) e.preventDefault(); };
   const ku = e => { keys[e.code] = false; };
   const kclear = () => { for (const k in keys) keys[k] = false; };
   window.addEventListener('keydown', kd); window.addEventListener('keyup', ku); window.addEventListener('blur', kclear);
@@ -288,7 +305,7 @@ export function createLab3D(host){
     const own = hits.find(h => h.object.userData.exp === S.exp && h.object.userData.act !== 'station') || hits.find(h => h.object.userData.act !== 'station') || hits[0];
     return {u:own.object.userData, d:own.distance}; }
   function pick(e){ const r = el.getBoundingClientRect(); return pickAt((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); }
-  const slotOf = (exp, id) => EXPERIMENTS[exp].slots.find(sl => sl.options.includes(id)).id;
+  const slotOf = (exp, id) => (EXPERIMENTS[exp].slots.find(sl=>sl.id===S.active&&sl.options.includes(id))||EXPERIMENTS[exp].slots.find(sl=>!S.bench[exp][sl.id]&&sl.options.includes(id))||EXPERIMENTS[exp].slots.find(sl=>sl.options.includes(id))).id;
   function interact(hit){
     if (!hit) return; const u = hit.u;
     if (S.mode === 'walk') {
@@ -341,7 +358,7 @@ export function createLab3D(host){
     const hk = rt.held ? rt.held.id + (rt.heldRev ? 'r' : '') : '';
     if (hk !== heldKey) { heldKey = hk; clear(held); if (rt.held) { const m = makePart(rt.held.id); m.scale.setScalar(0.34); if (rt.heldRev) m.rotation.z = Math.PI; m.traverse(o => { o.castShadow = false; }); held.add(m); } }
     Object.keys(stations).forEach(k => { const st = stations[k], b = S.bench[k], active = k === S.exp, sim = active ? shown() : null;
-      const key = [b.R, b.D, b.reversed, b.burnt].join('|'); if (key !== st.key) { st.key = key; fillR(st, b); if (st.hasD) fillD(st, b); }
+      const key = [b.R, b.D, b.reversed, b.burnt,b.pot].join('|'); if (key !== st.key) { st.key = key; fillR(st, b); if (st.hasD) fillD(st, b); }
       st.closed = active && S.closed; st.volt.set(fmtV(b.V), '#F2B705');
       const fuse = active && S.status === 'fuse'; st.swLabel.set(fuse ? 'fuse tripped' : st.closed ? 'closed' : 'open', fuse ? '#BF3A31' : undefined);
       const run = k === 'rc' && active && rt.scope;
@@ -377,7 +394,7 @@ export function createLab3D(host){
         }
         camera.position.set(player.pos.x, player.pos.y + (reduced ? 0 : Math.sin(player.bob) * 0.022), player.pos.z);
         camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
-        // the bench you walk up to becomes the active one
+        // This room has exactly one experiment; there is no cross-lab auto-selection.
         if (frameNo % 10 === 0 && player.pos.z < 6) { let best = null, bd = 99; Object.keys(stations).forEach(k => { const d = Math.abs(player.pos.x - (stations[k].x + 0.6)); if (d < bd) { bd = d; best = k; } }); if (best && bd < 4 && best !== S.exp) ACT.setBench(best); }
       }
       hand.position.y = -0.33 + (reduced ? 0 : Math.sin(player.bob * 0.5) * 0.008);
@@ -397,7 +414,7 @@ export function createLab3D(host){
         st.led.m.emissiveIntensity = v * 0.75; st.led.glow.material.opacity = Math.min(1, v * 0.95); const gs = 0.25 + v * 0.75; st.led.glow.scale.set(gs, gs, 1); st.led.light.intensity = v * 2.2; }
       const age = (now - st.smokeT) / 1000;
       st.smoke.forEach((sp, i) => { const a = age - i * 0.12; if (!st.smokeT || a < 0 || a > 1.9) { sp.visible = false; return; } sp.visible = true; sp.position.set(xR + Math.sin(i * 2.1 + a * 2) * 0.09, 1.55 + a * 0.55, Math.cos(i * 1.7) * 0.06); const s = 0.22 + a * 0.3; sp.scale.set(s, s, 1); sp.material.opacity = 0.75 * (1 - a / 1.9); });
-      if (k === 'rc' && active && rt.scope) { const t = 5 * scopeP(), b = S.bench.rc; st.dLabel.set(partLabel(b.D) + ' · ' + fmtV(rt.scope.V * (1 - Math.exp(-t / rt.scope.tau)))); st.amm.set(fmtI(rt.scope.V / rt.scope.R * Math.exp(-t / rt.scope.tau)), '#F2B705');
+      if (k === 'rc' && active && rt.scope) { const t = Math.max(.1,rt.scope.tau*5) * scopeP(), b = S.bench.rc; st.dLabel.set(partLabel(b.D) + ' · ' + fmtV(rt.scope.V * (1 - Math.exp(-t / rt.scope.tau)))); st.amm.set(fmtI(rt.scope.V / rt.scope.R * Math.exp(-t / rt.scope.tau)), '#F2B705');
         if (!rt.scope.done || st.drawnDone !== rt.scope) { drawScreen(st); st.stex.needsUpdate = true; if (rt.scope.done) st.drawnDone = rt.scope; } }
     });
     bot.position.x += (stations[S.exp].x + 2.4 - bot.position.x) * Math.min(1, dt * 3.2); bot.position.y = 2.5 + (reduced ? 0 : Math.sin(now / 620) * 0.05);
@@ -407,5 +424,5 @@ export function createLab3D(host){
   }
   let dead = false, raf = 0;
   resize(); goTo(S.exp, false); if (S.mode === 'walk') walkTo(S.exp, 0); sync(); raf = requestAnimationFrame(frame);
-  return {sync, goTo, setInsets, flyIn, useAim, destroy(){ dead = true; window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('blur', kclear); cancelAnimationFrame(raf); if (ro) ro.disconnect(); else window.removeEventListener('resize', resize); controls.dispose(); renderer.dispose(); renderer.forceContextLoss(); el.remove(); }, redraw(){ labels.forEach(l => { l.reset(); if (l.text !== undefined) l.set(l.text, l.color); }); Object.keys(stations).forEach(k => { stations[k].key = null; }); sync(); }};
+  return {sync, goTo, setInsets, flyIn, useAim, destroy(){ dead = true; window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); window.removeEventListener('blur', kclear); cancelAnimationFrame(raf); if (ro) ro.disconnect(); else window.removeEventListener('resize', resize); controls.dispose();const geos=new Set(),mats=new Set(),textures=new Set();scene.traverse(o=>{if(o.geometry)geos.add(o.geometry);for(const m of Array.isArray(o.material)?o.material:[o.material])if(m){mats.add(m);for(const value of Object.values(m))if(value?.isTexture)textures.add(value);}});geos.forEach(g=>g.dispose());mats.forEach(m=>m.dispose());textures.forEach(t=>t.dispose());renderer.dispose(); renderer.forceContextLoss(); el.remove(); }, redraw(){ labels.forEach(l => { l.reset(); if (l.text !== undefined) l.set(l.text, l.color); }); Object.keys(stations).forEach(k => { stations[k].key = null; }); sync(); }};
 }

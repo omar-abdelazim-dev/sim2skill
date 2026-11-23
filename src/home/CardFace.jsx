@@ -108,7 +108,7 @@ export default function CardFace({ lab }) {
         <pattern id="cf-grid" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M16 0H0V16" fill="none" stroke="rgba(220,231,235,.06)" /></pattern>
       </defs>
       <rect width="284" height="160" fill="url(#cf-bg)" /><rect width="284" height="160" fill="url(#cf-grid)" />
-      <g opacity={lab.live ? 1 : 0.62}><Art art={lab.art} /></g>
+      <g opacity={lab.live ? 1 : 0.62}><Art art={lab.art==='parallel'?'series':lab.art==='diode'?'led':lab.art} /></g>
     </svg>
   );
 }

@@ -110,7 +110,7 @@ const Ring = forwardRef(function Ring({ stage, focusLab, onOpen, onSoon, onExpan
   useEffect(() => {
     const s = st.current, wall = wallRef.current;
     const onWheel = ev => {
-      if (!props.current.active || ev.ctrlKey || ev.metaKey) return;
+      if (!props.current.active || ev.ctrlKey || ev.metaKey || !wall.contains(ev.target)) return;
       const t = ev.target; if (t.closest && t.closest('input, textarea, .chat-log, .preview')) return;
       ev.preventDefault(); if (!s.introDone) return;
       let d = Math.abs(ev.deltaY) > Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
@@ -130,9 +130,9 @@ const Ring = forwardRef(function Ring({ stage, focusLab, onOpen, onSoon, onExpan
       if (s.drag.moved) s.m = s.drag.m + 0.2 * d;
     };
     const up = ev => { if (!s.drag || ev.pointerId !== s.drag.id) return; if (s.drag.moved) s.lastDrag = performance.now(); s.drag = null; wall.classList.remove('grabbing'); };
-    window.addEventListener('wheel', onWheel, { passive: false });
+    wall.addEventListener('wheel', onWheel, { passive: false });
     wall.addEventListener('pointerdown', down); window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
-    return () => { window.removeEventListener('wheel', onWheel); wall.removeEventListener('pointerdown', down); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
+    return () => { wall.removeEventListener('wheel', onWheel); wall.removeEventListener('pointerdown', down); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
   }, []);
 
   const cardMove = (i, ev) => {
@@ -156,7 +156,7 @@ const Ring = forwardRef(function Ring({ stage, focusLab, onOpen, onSoon, onExpan
             const lab = LABS[si], w = WORLDS[lab.world];
             const dim = focusLab && focusLab !== lab.id;
             return (
-              <button type="button" key={i} tabIndex={-1} className={'rcard' + (lab.live ? ' live' : ' soon') + (dim ? ' dim' : '')} ref={el => (cardRefs.current[i] = el)}
+              <button type="button" key={i} tabIndex={0} className={'rcard' + (lab.live ? ' live' : ' soon') + (dim ? ' dim' : '')} ref={el => (cardRefs.current[i] = el)}
                 style={{ '--world': w.color, '--on': w.on }} aria-label={lab.live ? `Open the ${lab.title} lab` : `${lab.title}, coming soon`}
                 onPointerMove={ev => cardMove(i, ev)} onPointerLeave={() => cardLeave(i)} onClick={ev => cardClick(lab, ev)}>
                 <div className="tilt" ref={el => (tiltRefs.current[i] = el)}>
@@ -164,7 +164,7 @@ const Ring = forwardRef(function Ring({ stage, focusLab, onOpen, onSoon, onExpan
                   <div className="face" ref={el => (faceRefs.current[i] = el)}>
                     <CardFace lab={lab} />
                     <span className="chip-no"><i />{lab.live ? `Lab ${String(si + 1).padStart(2, '0')}` : 'Soon'}</span>
-                    <span className="lbar"><b>{lab.live ? w.label : 'COMING SOON'}</b><em>{lab.title}</em><span className="arr">↗</span></span>
+                    <span className="lbar"><b>{lab.live ? w.label : 'COMING SOON'}</b><em>{lab.title}</em></span>
                     <span className="veil" />
                   </div>
                 </div>

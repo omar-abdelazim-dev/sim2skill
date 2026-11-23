@@ -3,6 +3,7 @@ import CORE from './core.js';
 import { S, rt, ACT, useLab, shown, subscribe, voiceAvailable } from './store.js';
 import { benchSVG, partIcon, plotScope } from './draw.js';
 import { createLab3D } from './scene3d.js';
+import CircuitBoard from './CircuitBoard.jsx';
 
 const { EXPERIMENTS, partLabel, fmtI, fmtV, fmtT } = CORE;
 
@@ -12,11 +13,11 @@ const TOUCH = typeof window !== 'undefined' && window.matchMedia && matchMedia('
 if (!WEBGL) S.mode = '2d';
 
 /* The world: the 3D lab fills the whole screen. */
-function World() {
+function World({onFailure}) {
   const host = useRef(null);
   useEffect(() => {
     let lab = null;
-    try { lab = createLab3D(host.current); rt.lab = lab; } catch (e) { rt.lab = null; return; }
+    try { lab = createLab3D(host.current); rt.lab = lab; } catch (e) { rt.lab = null;host.current?.replaceChildren();ACT.mode('2d');onFailure();return; }
     if (rt.entering) { lab.flyIn(S.exp); rt.entering = false; }
     const off = subscribe(() => lab.sync());
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (rt.lab === lab) lab.redraw(); });
@@ -26,9 +27,7 @@ function World() {
 }
 
 function Schematic() {
-  const onClick = e => { const el = e.target.closest('[data-act]'); if (el) ACT[el.dataset.act](el.dataset.id); };
-  const onKey = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.act) { e.preventDefault(); ACT[e.target.dataset.act](e.target.dataset.id); } };
-  return <div className="world schematic"><div className="paper" onClick={onClick} onKeyDown={onKey} dangerouslySetInnerHTML={{ __html: benchSVG() }} /></div>;
+ return <div className="world schematic"><div className="paper"><CircuitBoard template={S.exp} bench={S.bench[S.exp]} closed={S.closed} result={shown()} slots={EXPERIMENTS[S.exp].slots} onSlot={id=>ACT.slot(id)} onSwitch={()=>ACT.sw()}/></div></div>;
 }
 
 function Scope() {
@@ -51,12 +50,13 @@ function Scope() {
 
 const RO = ({ k, v, note, big }) => (<div className="ro"><div className="k">{k}</div><div className={'v' + (big ? ' big' : '')}>{v}</div>{note && <div className="note">{note}</div>}</div>);
 function Meters() {
-  const exp = S.exp, b = S.bench[exp], sim = shown(), dash = '—';
-  if (exp === 'ohm') return <><RO k="Current" v={sim ? fmtI(sim.I) : dash} note={sim && sim.status === 'short' ? 'fuse tripped' : 'target 10 mA'} big /><RO k="Across R" v={sim ? fmtV(sim.vR) : dash} /></>;
+  const exp = S.exp, E=EXPERIMENTS[exp], b = S.bench[exp], sim = shown(), dash = '—';
+  if(['series','parallel','divider','diode'].includes(exp))return <><RO k={exp==='parallel'?'Total current':'Current'} v={sim?fmtI(sim.I):dash} big/><RO k={exp==='diode'?'Diode drop':'Across R2 / output'} v={sim?.vD!==undefined?fmtV(sim.vD):dash}/>{sim?.req!==undefined&&<RO k='Equivalent resistance' v={CORE.fmtR(sim.req)}/>}<RO k='Supply' v={fmtV(b.V)}/>{exp==='parallel'&&<><RO k='Branch R1' v={sim?.I1!==undefined?fmtI(sim.I1):dash}/><RO k='Branch R2' v={sim?.I2!==undefined?fmtI(sim.I2):dash}/></>}</>;
+  if (exp === 'ohm') return <><RO k="Current" v={sim ? fmtI(sim.I) : dash} note={sim && sim.status === 'short' ? 'fuse tripped' : E.goal} big /><RO k="Across R" v={sim ? fmtV(sim.vR) : dash} /></>;
   if (exp === 'led') { const dead = sim && (sim.burn || b.burnt);
     return <><RO k="Current" v={sim ? (dead ? '0.0 mA' : fmtI(sim.I)) : dash} note={sim && sim.burn ? 'peaked at ' + (sim.I >= 1 ? 'over 1 A' : fmtI(sim.I)) : 'safe 2 to 20 mA'} big /><RO k="Across LED" v={sim ? (dead ? fmtV(b.V) : fmtV(sim.vD)) : dash} /></>; }
   const ok = sim && sim.status === 'ok';
-  return <><RO k="Time to 63%" v={ok ? fmtT(sim.tau) : dash} note="target 1 s" big /><RO k="After 5 s" v={ok ? fmtV(sim.v5) : dash} /></>;
+  return <><RO k="Time to 63%" v={ok ? fmtT(sim.tau) : dash} note={E.goal} big /><RO k="After 5 s" v={ok ? fmtV(sim.v5) : dash} /></>;
 }
 
 function Avatar() {
@@ -111,7 +111,7 @@ function Dock() {
       <div className="dock-row">
         <div className="seg dark" role="group" aria-label="Slot">{E.slots.map(x => <button type="button" key={x.id} aria-pressed={x.id === sl.id} onClick={() => ACT.slot(x.id)}>{x.name}</button>)}</div>
         {sl.id === 'D' && cur && b.burnt && <button className="hbtn small" type="button" onClick={() => ACT.replace()}>Replace LED</button>}
-        {sl.id === 'D' && cur && <button className="hbtn small" type="button" onClick={() => ACT.flip()}>Flip</button>}
+        {sl.id === 'D' && cur && ['led','diode','cap'].includes(CORE.PARTS[cur]?.kind) && <button className="hbtn small" type="button" onClick={() => ACT.flip()}>Flip</button>}
         {cur && <button className="hbtn small ghosty" type="button" onClick={() => ACT.remove()}>Remove</button>}
       </div>
       <div className="hotbar">
@@ -121,6 +121,7 @@ function Dock() {
           </button>
         ))}
       </div>
+      {(b.R==='pot'||b.D==='pot')&&<label className="pot-control">Adjustable resistance: {b.pot||1000} Ω<input aria-label="Adjustable resistance" type="range" min="100" max="10000" step="10" value={b.pot||1000} onChange={e=>ACT.pot(e.target.value)}/></label>}
       <div className="dock-row act">
         <button className={'power' + (S.closed ? ' on' : '')} type="button" onClick={() => ACT.sw()}><i />{S.closed ? 'Open switch' : 'Close switch'}</button>
         {!E.volt.fixed && (
@@ -153,7 +154,7 @@ function Joystick() {
 
 function Kit({ parts, setParts }) {
   const E = EXPERIMENTS[S.exp], b = S.bench[S.exp], h = rt.held;
-  const opts = []; E.slots.forEach(sl => sl.options.forEach(id => opts.push(id)));
+  const opts = [...new Set(E.slots.flatMap(sl=>sl.options))];
   return (
     <section className="hud-card kit" aria-label="Your hands and controls">
       <button type="button" className="hud-icon fold panel-x" aria-label="Hide controls" title="Hide" onClick={() => ACT.panel('kit')}>×</button>
@@ -165,6 +166,7 @@ function Kit({ parts, setParts }) {
           <button className="hbtn small ghosty" type="button" onClick={() => ACT.drop()}>Put back <kbd>Q</kbd></button>
         </>) : (<span className="kh-t"><b>Hands empty</b><span>Walk to the parts table beside the bench and pick a part up.</span></span>)}
       </div>
+      {(b.R==='pot'||b.D==='pot')&&<label className="pot-control">Adjustable resistance: {b.pot||1000} Ω<input aria-label="Adjustable resistance" type="range" min="100" max="10000" step="10" value={b.pot||1000} onChange={e=>ACT.pot(e.target.value)}/></label>}
       <div className="dock-row act">
         <button className={'power' + (S.closed ? ' on' : '')} type="button" onClick={() => ACT.sw()}><i />{S.closed ? 'Open switch' : 'Close switch'}</button>
         {!E.volt.fixed && (
@@ -209,6 +211,7 @@ export default function LabView({ onBack, onDashboard }) {
   const [nourOpen, setNourOpen] = useState(() => window.innerWidth > 820);
   const [drawer, setDrawer] = useState(false);
   const [parts, setParts] = useState(false);
+  const [graphicsError,setGraphicsError]=useState(false);
   const topRef = useRef(null), botRef = useRef(null);
   const E = EXPERIMENTS[S.exp];
   const pill = { idle: ['', 'Switch open'], live: ['live', 'Circuit live'], fuse: ['crit', 'Fuse tripped'], burnt: ['crit', 'LED burnt out'], stopped: ['warn', 'Test stopped'], success: ['good', 'Goal reached'] }[S.status];
@@ -234,7 +237,8 @@ export default function LabView({ onBack, onDashboard }) {
   // game keys: E use, R flip, Q put back, number keys pick parts, Space flips the switch, Esc leaves
   useEffect(() => {
     const key = e => {
-      if (e.target.closest && e.target.closest('input, textarea')) return;
+      if(e.defaultPrevented||document.querySelector('dialog[open]'))return;
+      if (e.target.closest && e.target.closest('input, textarea, select')) return;
       const Ex = EXPERIMENTS[S.exp], sl = Ex.slots.find(x => x.id === S.active) || Ex.slots[0];
       const all = []; Ex.slots.forEach(x => x.options.forEach(id => all.push(id)));
       if (/^[1-9]$/.test(e.key)) { if (S.mode === 'walk') { const id = all[+e.key - 1]; if (id) ACT.take(id); } else { const id = sl.options[+e.key - 1]; if (id) ACT.part(id); } }
@@ -250,24 +254,17 @@ export default function LabView({ onBack, onDashboard }) {
 
   return (
     <main className={'immersive' + (walk ? ' walking' : '') + (TOUCH ? ' touch' : '')}>
-      {use3d ? <World /> : <Schematic />}
+      {use3d ? <World onFailure={()=>setGraphicsError(true)}/> : <Schematic />}{graphicsError&&<div className='graphics-fallback' role='status'>3D is unavailable. Your lab is ready in schematic view.</div>}
       <div className="hud">
         <header className="hud-top" ref={topRef}>
           <div className="ht-left">
             <button type="button" className="hud-back" onClick={onBack} aria-label="Leave the lab, back to all labs">← Labs</button>
             <div className="hud-card title-card">
-              <span className="eyebrow">Bench {E.n} of 3</span>
+              <span className="eyebrow">Dedicated experiment room</span>
               <h1>{E.title}</h1>
               <p>{E.goal}</p>
             </div>
           </div>
-          <nav className="hud-card bench-pick" aria-label="Benches">
-            {Object.keys(EXPERIMENTS).map(id => (
-              <button type="button" key={id} aria-pressed={S.exp === id} onClick={() => ACT.exp(id)}>
-                <span>{EXPERIMENTS[id].n}</span>{EXPERIMENTS[id].title}{S.completed[id] && <i aria-label="done">✓</i>}
-              </button>
-            ))}
-          </nav>
           <div className="ht-right">
             <span className={'pill ' + pill[0]}>{pill[1]}</span>
             {WEBGL && <div className="seg dark" role="group" aria-label="View">{[['walk', 'Walk'], ['3d', 'Orbit'], ['2d', 'Schematic']].map(([m, l]) => <button type="button" key={m} aria-pressed={S.mode === m} onClick={() => ACT.mode(m)}>{l}</button>)}</div>}

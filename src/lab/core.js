@@ -1,6 +1,12 @@
 const CORE = (() => {
   const PARTS = {
     wire:{kind:'wire',ohms:0,label:'Wire'},
+    r47:{kind:'res',ohms:47},r150:{kind:'res',ohms:150},r680:{kind:'res',ohms:680},r2k:{kind:'res',ohms:2000},r4k7:{kind:'res',ohms:4700},r22k:{kind:'res',ohms:22000},r47k:{kind:'res',ohms:47000},
+    pot:{kind:'res',ohms:1000,variable:true,label:'Adjustable resistor'},
+    ledGreen:{kind:'led',vf:2.2,rated:.020,max:.030,min:.002,label:'Green LED',color:'#32c97b'},
+    ledBlue:{kind:'led',vf:3.2,rated:.020,max:.030,min:.002,label:'Blue LED',color:'#428dff'},
+    diode:{kind:'diode',vf:.7,rated:.1,max:.2,min:0,label:'Silicon diode'},
+    c1:{kind:'cap',farads:1e-6},c47:{kind:'cap',farads:47e-6},c220:{kind:'cap',farads:220e-6},c470:{kind:'cap',farads:470e-6},
     r100:{kind:'res',ohms:100}, r220:{kind:'res',ohms:220}, r330:{kind:'res',ohms:330}, r470:{kind:'res',ohms:470},
     r1k:{kind:'res',ohms:1000}, r10k:{kind:'res',ohms:10000}, r100k:{kind:'res',ohms:100000},
     led:{kind:'led',vf:2.0,rated:0.020,max:0.030,min:0.002,label:'Red LED'},
@@ -12,7 +18,7 @@ const CORE = (() => {
   const fmtV = v => v.toFixed(2).replace(/0$/, '') + ' V';
   const fmtT = s => s < 1 ? Math.round(s * 1000) + ' ms' : (Math.round(s * 100) / 100) + ' s';
   const fmtC = f => Math.round(f * 1e6) + ' µF';
-  const partLabel = id => { const p = PARTS[id]; return !p ? '' : p.kind === 'res' ? fmtR(p.ohms) : p.kind === 'cap' ? fmtC(p.farads) : p.label; };
+  const partLabel = id => { const p = PARTS[id]; return !p ? '' : p.kind === 'res' ? (p.label || fmtR(p.ohms)) : p.kind === 'cap' ? fmtC(p.farads) : p.label; };
 
   const EXPERIMENTS = {
     ohm:{ n:1, title:"Ohm's law", goal:'Make exactly 10 mA flow through the resistor (within 5%).',
@@ -44,6 +50,19 @@ const CORE = (() => {
              right:'Correct. After τ it is at about 63%, and after about 5τ it is practically full.',wrong:'Not quite. After one time constant it is at about 63%.'} }
   };
 
+  const resistors = ['r47','r100','r150','r220','r330','r470','r680','r1k','r2k','r4k7','r10k','r22k','r47k','r100k','pot'];
+  for (const e of Object.values(EXPERIMENTS)) e.slots[0].options = e.title === 'RC charging' ? resistors.filter(id=>id!=='r47') : ['wire',...resistors];
+  EXPERIMENTS.led.slots[1].options = ['led','ledGreen','ledBlue'];
+  EXPERIMENTS.rc.slots[1].options = ['c1','c10','c47','c100','c220','c470','c1000'];
+  const extra = {
+    series:{title:'Series resistance',goal:'Build a series circuit carrying 3 mA from a 9 V supply (within 5%).',target:.003,voltage:9,parts:resistors.filter(id=>id!=='pot'),concept:'Series resistances add: Req = R1 + R2.',question:'What happens to total resistance when you add a series resistor?',answers:['It increases','It decreases','It stays the same'],correct:0},
+    parallel:{title:'Parallel paths',goal:'Build two parallel branches drawing 12 mA total from 6 V (within 5%).',target:.012,voltage:6,parts:resistors.filter(id=>id!=='pot'),concept:'Each branch sees the supply. Total current is the sum of branch currents.',question:'What is the voltage across each parallel branch?',answers:['Half the supply','The full supply','Zero'],correct:1},
+    divider:{title:'Voltage divider',goal:'Produce 3 V across the lower resistor from 9 V (within 5%).',target:3,voltage:9,parts:resistors.filter(id=>id!=='pot'),concept:'Vout = Vin × R2 / (R1 + R2). The divider is unloaded.',question:'With two equal divider resistors, Vout is…',answers:['The full supply','Half the supply','Twice the supply'],correct:1},
+    diode:{title:'Diode direction',goal:'Forward-bias a silicon diode and produce 4.3 mA from 5 V (within 5%).',target:.0043,voltage:5,parts:['diode'],concept:'The simplified silicon diode drops 0.7 V forward and blocks reverse current.',question:'A reverse-biased idealized diode…',answers:['Conducts more current','Blocks current','Becomes a battery'],correct:1}
+  };
+  Object.entries(extra).forEach(([id,e],i)=>{EXPERIMENTS[id]={n:i+4,title:e.title,goal:e.goal,target:e.target,tol:.05,volt:{fixed:e.voltage},spec:e.concept,intro:e.goal,slots:[{id:'R',name:id==='diode'?'Series resistor':'Resistor R1',options:resistors},{id:'D',name:id==='diode'?'Diode':'Resistor R2',options:e.parts}],asks:[['How does this circuit work?',e.concept]],check:{q:e.question,options:e.answers,correct:e.correct,right:e.concept,wrong:e.concept}};});
+  const effective = (id,b) => {const p=PARTS[id];return p?.variable?{...p,ohms:Number.isFinite(b.pot)?Math.max(100,Math.min(10000,b.pot)):1000}:p;};
+
   const MISTAKES = {
     'ohm:open_circuit':{label:'Open circuit',concept:'A circuit needs a complete loop'},
     'ohm:short_circuit':{label:'Short circuit: wire in place of the resistor',concept:'Resistance limits current'},
@@ -62,21 +81,30 @@ const CORE = (() => {
     'rc:tau_too_long':{label:'Capacitor charges too slowly',concept:'Time constant τ = R × C'}
   };
 
+  for(const [exp,issues] of Object.entries({series:['open_circuit','current_off_target','component_overload'],parallel:['open_circuit','current_off_target','component_overload'],divider:['open_circuit','voltage_off_target','component_overload'],diode:['open_circuit','diode_reversed','current_off_target','component_overload']}))for(const issue of issues)MISTAKES[exp+':'+issue]={label:issue.replaceAll('_',' '),concept:EXPERIMENTS[exp].spec};
+
   function simulate(exp, b) {
-    const R = b.R ? PARTS[b.R] : null, D = b.D ? PARTS[b.D] : null, V = b.V;
+    const R = b.R ? effective(b.R,b) : null, D = b.D ? effective(b.D,b) : null, V = b.V;
     if (exp === 'ohm') {
       if (!R) return {status:'open', I:0, vR:0};
       if (R.kind === 'wire') return {status:'short', I:V / R_SHORT, vR:0};
       return {status:'ok', I:V / R.ohms, vR:V};
     }
-    if (exp === 'led') {
+    if (['series','parallel','divider'].includes(exp)) {
+      if(!R||!D)return {status:'open',I:0};
+      const req=exp==='parallel'?R.ohms*D.ohms/(R.ohms+D.ohms):R.ohms+D.ohms;
+      if(req<=0)return {status:'short',I:V/R_SHORT};
+      const I=V/req,I1=exp==='parallel'?V/R.ohms:I,I2=exp==='parallel'?V/D.ohms:I;
+      return {status:'ok',I,I1,I2,req,vR:exp==='parallel'?V:I*R.ohms,vD:exp==='parallel'?V:I*D.ohms,output:exp==='parallel'?V:I*D.ohms,power:Math.max(I1*I1*R.ohms,I2*I2*D.ohms)};
+    }
+    if (exp === 'led' || exp==='diode') {
       if (!R || !D) return {status:'open', I:0, vR:0, vD:0};
       if (b.burnt) return {status:'burnt', I:0, vR:0, vD:V};
       if (b.reversed) return {status:'blocked', I:0, vR:0, vD:V};
       const ohms = R.kind === 'wire' ? R_SHORT : R.ohms;
       const I = V > D.vf ? (V - D.vf) / ohms : 0;
-      const burn = I > D.max;
-      return {status:'ok', I, vR:I * (R.kind === 'wire' ? 0 : R.ohms), vD:I > 0 ? D.vf : V, burn, lit:!burn && I >= D.min, bright:Math.max(0, Math.min(1, I / D.rated))};
+      const burn = exp==='led' && I > D.max;
+      return {status:'ok', I, power:I*I*R.ohms, vR:I * (R.kind === 'wire' ? 0 : R.ohms), vD:I > 0 ? D.vf : V, burn, lit:!burn && I >= D.min, bright:Math.max(0, Math.min(1, I / D.rated))};
     }
     if (!R || !D) return {status:'open', I:0};
     if (b.reversed) return {status:'reversed', I:0};
@@ -84,9 +112,15 @@ const CORE = (() => {
     return {status:'ok', tau, I:V / R.ohms, v5:V * (1 - Math.exp(-5 / tau)), v63:V * (1 - Math.exp(-1))};
   }
 
-  function detect(exp, b, s) {
-    const E = EXPERIMENTS[exp];
+  function detect(exp, b, s, E = EXPERIMENTS[exp]) {
     if (s.status === 'open') return 'open_circuit';
+    if(['series','parallel','divider','diode'].includes(exp)){
+      if(s.status==='blocked')return 'diode_reversed';
+      if(s.status==='short')return 'short_circuit';
+      if(s.power>.25 || (exp==='diode'&&s.I>.1))return 'component_overload';
+      const value=exp==='divider'?s.vD:s.I;
+      return Math.abs(value-E.target)<=E.target*E.tol?'success':exp==='divider'?'voltage_off_target':'current_off_target';
+    }
     if (exp === 'ohm') {
       if (s.status === 'short') return 'short_circuit';
       if (s.I > E.target * (1 + E.tol)) return 'current_too_high';
@@ -101,6 +135,7 @@ const CORE = (() => {
       if (s.I > D.max) return 'resistor_too_small';
       if (s.I > D.rated) return 'over_rated';
       if (s.I < D.min) return 'resistor_too_large';
+      if(E.custom && Math.abs(s.I-E.target)>E.target*E.tol)return 'current_off_target';
       return 'success';
     }
     if (s.status === 'reversed') return 'cap_reversed';
@@ -113,7 +148,17 @@ const CORE = (() => {
 
   // Each mistake has three levels: nudge, hint, explanation. Every value quoted comes from simulator state.
   function hintText(exp, m, level, b, s) {
-    const R = b.R ? PARTS[b.R] : null, D = b.D ? PARTS[b.D] : null, V = b.V;
+    const E=EXPERIMENTS[exp];
+    if(E.custom||(exp==='led'&&b.D&&b.D!=='led')||['series','parallel','divider','diode'].includes(exp)){
+      const n=Math.max(0,Math.min(2,level-1));
+      if(m==='success')return `Goal achieved. ${E.goal} Explain how the measured result follows from your component values.`;
+      if(m==='open_circuit')return 'The circuit is open. Fill each component slot, then close the switch.';
+      if(m==='diode_reversed'||m==='led_reversed'||m==='cap_reversed')return 'Check polarity: the diode anode or capacitor positive terminal must face the higher voltage.';
+      if(m==='component_overload'||m==='short_circuit'||s.burn)return 'The component rating is exceeded. Open the switch and increase resistance; replace a damaged LED before testing again.';
+      const formula=exp==='divider'?'Vout = Vin × R2 / (R1 + R2)':exp==='parallel'?'I = V/R1 + V/R2':exp==='series'?'I = V / (R1 + R2)':exp==='rc'?'τ = R × C':exp==='led'||exp==='diode'?'I = (Vs − Vf) / R':'I = V / R';
+      return [`Compare the measurements with your goal. Which component could move the result toward the target?`,`${formula}. Think about which value to increase or decrease.`,`${formula}. Your supply is ${fmtV(b.V)}. ${E.goal} Change one component and test again.`][n];
+    }
+    const R = b.R ? effective(b.R,b) : null, D = b.D ? effective(b.D,b) : null, V = b.V;
     const rl = R ? partLabel(b.R) : '', L = Math.max(1, Math.min(3, level)) - 1;
     const pick = arr => arr[L];
     if (m === 'open_circuit') {
@@ -128,7 +173,7 @@ const CORE = (() => {
         'The fuse tripped the moment you closed the switch. What is limiting the current in this loop right now?',
         'A plain wire has almost no resistance. With I = V ÷ R, what happens to I when R is close to zero?',
         'A wire alone short-circuits the supply, so the current shoots up until the fuse trips. Swap the wire for a resistor.']);
-      const need = fmtV(R.ohms * 0.010);
+      const need = fmtV(R.ohms * EXPERIMENTS[exp].target);
       if (m === 'current_too_high') return pick([
         `The ammeter reads ${fmtI(s.I)} and the target is 10 mA. Does adding resistance raise or lower the current?`,
         `You have ${fmtV(V)} across ${rl}. More voltage pushes more current, and more resistance holds it back. Which will you change, and which way?`,
@@ -179,6 +224,6 @@ const CORE = (() => {
     return `τ = ${rl} × ${cl} = ${fmtT(s.tau)}. The scope shows ${fmtV(s.v63)} at 1 s, which is 63% of 5 V. After about 5τ the capacitor is practically full.`;
   }
 
-  return {PARTS, EXPERIMENTS, MISTAKES, simulate, detect, hintText, partLabel, fmtR, fmtI, fmtV, fmtT, fmtC};
+  return {PARTS, EXPERIMENTS, MISTAKES, effective, simulate, detect, hintText, partLabel, fmtR, fmtI, fmtV, fmtT, fmtC};
 })();
 export default CORE;

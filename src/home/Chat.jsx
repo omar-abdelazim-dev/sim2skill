@@ -1,41 +1,33 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { caps, onCaps } from '../claude.js';
 import { LABS, LIVE } from '../labs.js';
+import { fallbackReply } from './guide.js';
 import { S, ACT, speak, useLab, voiceAvailable, rt } from '../lab/store.js';
 
-const GREETING = "Hi, I'm Nour, your lab instructor. Three labs are open right now. Which one do you want to try?";
+const GREETING = "Hi, I’m Nour. Think of me as your lab partner. Tell me what you’d like to explore, or pick an experiment to get started.";
 
 const SYSTEM = `You are Nour, the AI lab instructor inside Sim2Skill, a virtual electronics lab for university students in Egypt.
-The student is on the home screen, choosing a lab. Three labs are open:
+The student is on the home screen, choosing a lab. Seven electronics labs are open, each in a separate room:
+- series: add two series resistances.
+- parallel: measure two branch currents.
+- divider: produce a target output voltage.
+- diode: explore silicon diode direction and voltage drop.
 - ohm: "Ohm's law". Set a supply voltage and pick a resistor so exactly 10 mA flows.
 - led: "LED with a resistor". Light a red LED from a 9 V battery at a safe current (2 to 20 mA) without burning it.
 - rc: "RC charging". Choose a resistor and a capacitor so the capacitor reaches 63% of 5 V in 1 second.
-Coming soon, not open yet: series and parallel circuits, voltage divider, simple pendulum, lens focal length, Hooke's law spring, projectile launch, acid-base titration, flame test, reaction rates.
+Coming soon, not open yet: simple pendulum, lens focal length, Hooke's law spring, projectile launch, acid-base titration, flame test, reaction rates.
 Rules:
 - Reply in the student's language. Egyptian Arabic, standard Arabic, French and English are all fine.
 - Under 60 words, warm and direct. Plain sentences, no headings, no markdown.
 - Help the student choose. If it is unclear, ask what they are studying or what they want to practise.
-- When the student asks to start, open, try or go to a lab, or names an experiment one of the three labs covers, call the open_lab tool with that lab's id and say in one short sentence that you are taking them there.
+- When the student asks to start, open, try or go to a lab, or names an experiment one of the seven labs covers, call the open_lab tool with that lab's id and say in one short sentence that you are taking them there.
 - Never say a coming-soon lab is open. Say it is on the roadmap and suggest the closest open lab.
 - You may explain a concept briefly, but steer the student into a lab to practise it.`;
 
-const KEYS = [
-  ['ohm', /\bohm|resistor|resistance|current|voltage|أوم|اوم|مقاوم|تيار|جهد|فولت/i],
-  ['led', /\bled\b|diode|ليد|دايود|ثنائي|لمبة/i],
-  ['rc', /\brc\b|capacitor|charging|time constant|مكثف|كاباسيتور|شحن/i]
-];
-const SOON = /pendulum|lens|spring|hooke|projectile|titration|flame|reaction|series|parallel|divider|بندول|عدسة|زنبرك|معايرة|لهب|تفاعل|توالي|توازي/i;
-
-function fallbackReply(text) {
-  const hit = KEYS.find(([, re]) => re.test(text));
-  if (hit) { const lab = LABS.find(l => l.id === hit[0]); return { text: `Good choice. Taking you to the ${lab.title} lab now.`, open: hit[0] }; }
-  if (SOON.test(text)) return { text: "That experiment is on our roadmap but not open yet. For now you can practise with one of these three labs.", labs: true };
-  return { text: "I can open one of three labs for you. Pick one below, or tell me what you're studying and I'll suggest one.", labs: true };
-}
 
 const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
   useLab();
-  const [msgs, setMsgs] = useState([{ role: 'nour', text: GREETING, labs: true }]);
+  const [msgs, setMsgs] = useState([{ role: 'nour', text: GREETING, labs: false }]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [, setCapsTick] = useState(0);
@@ -73,7 +65,7 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
       const out = await caps.sample(input, {
         cache: false, modelTier: 'quick', signal: ctrl.signal,
         onText: ({ text: t }) => setLast(t === 'Thinking...' ? '' : t, false),
-        tools: [{ name: 'open_lab', description: 'Open one of the three live labs and walk the student into it.',
+        tools: [{ name: 'open_lab', description: 'Open one of the seven live labs and walk the student into it.',
           inputSchema: { type: 'object', properties: { lab: { type: 'string', enum: LIVE.map(l => l.id) } }, required: ['lab'] },
           execute: inp => { if (LIVE.some(l => l.id === inp.lab)) pending = inp.lab; return { opened: inp.lab }; } }]
       });
@@ -89,7 +81,7 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
     } finally { setBusy(false); abortRef.current = null; }
   }
 
-  const pick = lab => { if (busy || disabled) return; setMsgs(m => [...m, { role: 'user', text: `Take me to the ${lab.title} lab.` }]); setTimeout(() => { nourSays(`Opening the ${lab.title} lab. ${lab.blurb}`); setTimeout(() => onOpenLab(lab.id), 450); }, 250); };
+  const pick = lab => { if (busy || disabled) return; setBusy(true); setMsgs(m => [...m, { role: 'user', text: `Take me to the ${lab.title} lab.` }]); setTimeout(() => { nourSays(`Opening the ${lab.title} lab. ${lab.blurb}`); setTimeout(() => {setBusy(false);onOpenLab(lab.id);}, 450); }, 250); };
 
   return (
     <section className="chat" aria-label="Chat with Nour">
@@ -108,9 +100,9 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
             <p>{m.text || (m.streaming ? <span className="dots" aria-label="Nour is typing"><i /><i /><i /></span> : '')}</p>
             {m.labs && i === msgs.length - 1 && (
               <div className="lab-picks">
-                {LIVE.map((l, k) => (
+                {LIVE.map(l => (
                   <button type="button" key={l.id} className="pick" onClick={() => pick(l)} disabled={busy || disabled}>
-                    <span className="n">0{k + 1}</span><span className="t">{l.title}</span><span className="d">{l.blurb}</span><span className="go">↗</span>
+                    <span className="t">{l.title}</span><span className="d">{l.blurb}</span>
                   </button>
                 ))}
               </div>
@@ -118,10 +110,11 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
           </div>
         ))}
       </div>
+      {msgs.length === 1 && <div className="chat-suggestions" aria-label="Conversation starters"><button type="button" disabled={disabled || busy} onClick={() => send('Where should I start?')}>Where should I start?</button><button type="button" disabled={disabled || busy} onClick={() => send('Help me choose a lab')}>Help me choose a lab</button></div>}
       <form className="chat-input" onSubmit={e => { e.preventDefault(); send(draft); }}>
         <label htmlFor="chat-text" className="sr-only">Message Nour</label>
-        <input id="chat-text" ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="Ask Nour, or say which experiment you want to do" autoComplete="off" disabled={disabled} />
-        <button type="submit" className="send" disabled={!draft.trim() || busy || disabled}>Send ↗</button>
+        <input id="chat-text" ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="What would you like to explore?" autoComplete="off" disabled={disabled} />
+        <button type="submit" className="send" disabled={!draft.trim() || busy || disabled}>Send</button>
       </form>
     </section>
   );
