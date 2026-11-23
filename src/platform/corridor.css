@@ -1,0 +1,100 @@
+/* Sign-in page: walkable lab corridor behind the account form */
+body.corridor-on .platform-nav{background:linear-gradient(rgba(10,14,17,.92),rgba(10,14,17,0))}
+
+.corridor-auth{--U:var(--u);--nav-h:88px;position:fixed;inset:0;z-index:1;background:var(--paper);overflow:hidden;color:var(--ink)}
+.corridor-first{position:absolute;inset:0}
+.corridor-stage{position:absolute;inset:0;cursor:grab}
+.corridor-stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.corridor-stage.over-frame{cursor:pointer}
+.corridor-stage.dragging{cursor:grabbing}
+.corridor-veil{position:absolute;inset:0;background:var(--paper);pointer-events:none;opacity:1;transition:opacity .9s ease-out}
+.corridor-auth.in .corridor-veil{opacity:0}
+.corridor-auth.exiting .corridor-veil{opacity:1;transition-duration:.5s}
+
+/* Overlay UI */
+.corridor-ui{position:absolute;inset:0;pointer-events:none}
+.corridor-ui>*{pointer-events:auto}
+.rise{display:block;overflow:hidden}
+.rise>span{display:block;transform:translateY(105%)}
+.corridor-auth.in .rise>span{transform:none;animation:corridor-rise 1s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(250ms + var(--i) * 60ms)}
+.corridor-hint .rise>span,.swapped .rise>span{animation-delay:0ms!important;animation-duration:.45s!important}
+@keyframes corridor-rise{from{transform:translateY(105%)}to{transform:none}}
+
+.corridor-arrows{position:absolute;left:calc(45 * var(--U));bottom:calc(270 * var(--U));display:flex;gap:calc(10 * var(--U));opacity:0;transition:opacity .6s ease-out .6s}
+.corridor-auth.in .corridor-arrows{opacity:1}
+.corridor-arrows button{width:max(44px,calc(50 * var(--U)));height:max(44px,calc(50 * var(--U)));border-radius:50%;border:1.5px solid rgba(238,244,246,.55);background:rgba(10,14,17,.35);color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:background .25s,color .25s,border-color .25s;padding:0}
+.corridor-arrows button:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.corridor-arrows button:focus-visible,.corridor-jump:focus-visible,.lab-focus-go:focus-visible{outline:2px solid var(--meter);outline-offset:3px}
+.corridor-arrows svg{width:max(18px,calc(20 * var(--U)));height:max(18px,calc(20 * var(--U)))}
+
+.corridor-hint{position:absolute;left:calc(45 * var(--U) + max(98px,calc(122 * var(--U))));bottom:calc(276 * var(--U));margin:0;font:400 max(11px,calc(10.5 * var(--U)))/1.7 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);pointer-events:none}
+
+.corridor-caption{position:absolute;left:calc(45 * var(--U));bottom:calc(40 * var(--U));pointer-events:none;max-width:calc(100vw - 600 * var(--U))}
+.corridor-kicker{font:500 max(11px,calc(11.5 * var(--U)))/1.4 var(--mono);letter-spacing:.14em;color:var(--meter);margin:0 0 calc(12 * var(--U)) calc(3 * var(--U))}
+.corridor-caption h1{margin:0;font:700 calc(150 * var(--U))/.85 var(--font-display);text-transform:uppercase;white-space:nowrap;color:var(--ink);letter-spacing:.005em}
+.corridor-sub{margin:calc(14 * var(--U)) 0 0 calc(3 * var(--U));font:400 max(15px,calc(19 * var(--U)))/1.4 var(--serif);color:var(--ink-soft)}
+.corridor-jump{display:none}
+
+/* Focus card under a picture */
+.lab-focus-card{position:absolute;z-index:3;width:min(340px,calc(100vw - 32px));background:rgba(10,14,17,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--line-c);border-radius:12px;padding:16px 20px 18px;opacity:0;visibility:hidden;transform:translateY(6px);transition:opacity .25s,transform .25s,visibility 0s .25s}
+.lab-focus-card.shown{opacity:1;visibility:visible;transform:none;transition:opacity .25s,transform .25s,visibility 0s}
+.lab-focus-world{font:500 11px/1.4 var(--mono);letter-spacing:.14em}
+.lab-focus-card h2{margin:4px 0 6px;font:500 24px/1.2 var(--serif);color:var(--ink)}
+.lab-focus-card p{margin:0 0 12px;font:400 14px/1.55 var(--sans);color:var(--ink-soft)}
+.lab-focus-card .lab-focus-soon{margin:0;color:var(--ink-muted);font-family:var(--mono);font-size:12px;letter-spacing:.06em}
+.lab-focus-go{border:0;background:var(--meter);color:var(--meter-ink);font:600 14px/1 var(--sans);padding:12px 16px;border-radius:7px;cursor:pointer;min-height:44px}
+.lab-focus-go:hover{background:var(--meter-strong)}
+
+/* The account form */
+.corridor-auth .corridor-auth-panel{position:absolute;z-index:4;right:calc(48 * var(--U));top:calc(var(--nav-h) + 16px);width:max(360px,calc(452 * var(--U)));max-height:calc(100svh - var(--nav-h) - 40px);overflow:auto;overscroll-behavior:contain;margin:0;max-width:none;padding:calc(30 * var(--U)) calc(32 * var(--U)) calc(24 * var(--U));padding:max(22px,calc(30 * var(--U))) max(24px,calc(32 * var(--U))) max(18px,calc(24 * var(--U)));background:rgba(12,18,23,.84);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);border:1px solid var(--line-c);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.45);opacity:0;transform:translateY(18px);transition:opacity .9s cubic-bezier(.2,.7,.2,1) .45s,transform .9s cubic-bezier(.2,.7,.2,1) .45s}
+.corridor-auth.in .corridor-auth-panel{opacity:1;transform:none}
+.corridor-auth.exiting .corridor-auth-panel{opacity:0;transform:translateY(-10px);transition:opacity .35s,transform .35s}
+.corridor-auth-panel h2{font:500 26px/1.25 var(--serif);margin:0 0 4px}
+.corridor-auth-panel .role-choice{margin:18px 0 14px}
+.corridor-auth-panel label{margin-bottom:16px}
+.corridor-auth-panel input:not([type=radio]){background:rgba(5,9,12,.7)}
+.corridor-auth-panel>.home-primary{width:100%;margin:16px 0 8px}
+.corridor-auth-panel>.platform-text{width:100%;text-align:center}
+.corridor-auth-panel .platform-help{margin:0}
+.corridor-roles{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:0 0 18px}
+.corridor-roles h3{font:500 15px/1.3 var(--serif)!important;margin:0 0 4px!important;color:#a9dbe5}
+.corridor-roles p{font:400 13px/1.5 var(--sans);margin:0;color:var(--ink-soft)!important}
+.corridor-next{font-size:14px;margin:6px 0 0;color:#cfe3ec!important}
+.corridor-next b{color:var(--meter);font-weight:600}
+
+/* No WebGL: static frames */
+.corridor-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:4vw;padding:0 calc(520 * var(--U)) 0 4vw;background:linear-gradient(var(--paper),#141C22)}
+.corridor-fallback-frame{width:22vw;max-width:300px;aspect-ratio:284/160;border:6px solid #C9A979;outline:3px solid #0A0E11;outline-offset:-9px;box-shadow:0 20px 50px rgba(0,0,0,.5);overflow:hidden}
+.corridor-fallback-frame svg{width:100%;height:100%;display:block}
+.corridor-auth.no-webgl .corridor-stage{cursor:default}
+
+/* Small screens: corridor fills the first screen, the form follows */
+@media (max-width:820px),(orientation:landscape) and (max-height:500px){
+  body.corridor-on .platform-nav{background:rgba(10,14,17,.94)}
+  .corridor-auth{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+  .corridor-first{position:sticky;top:0;height:100svh;z-index:0}
+  .corridor-stage canvas{touch-action:pan-y}
+  .corridor-hint{display:none}
+  .corridor-arrows{left:16px;top:auto;bottom:24px;flex-direction:row;gap:10px}
+  .corridor-arrows button{width:44px;height:44px}
+  .corridor-caption{left:16px;right:16px;bottom:92px;max-width:none}
+  .corridor-caption h1{font-size:min(19vw,15svh);white-space:normal}
+  .corridor-kicker{font-size:11px}
+  .corridor-sub{font-size:16px}
+  .corridor-jump{display:inline-flex;align-items:center;position:absolute;right:16px;bottom:26px;min-height:44px;padding:0 18px;border:0;border-radius:99px;background:var(--meter);color:var(--meter-ink);font:500 12px/1 var(--mono);letter-spacing:.08em;cursor:pointer}
+  .lab-focus-card{left:12px!important;right:12px;top:auto!important;bottom:84px;width:auto}
+  .corridor-auth .corridor-auth-panel{position:relative;right:auto;top:auto;width:auto;max-height:none;overflow:visible;margin:-24px 12px 24px;background:#0E161C;backdrop-filter:none;-webkit-backdrop-filter:none;padding:24px 20px;scroll-margin-top:calc(var(--nav-h) + 8px)}
+  .corridor-roles{grid-template-columns:1fr}
+  .corridor-fallback{padding:0 16px;gap:12px}
+  .corridor-fallback-frame{width:28vw}
+}
+@media (orientation:landscape) and (max-height:500px){
+  .corridor-caption h1{font-size:min(11vw,22svh);white-space:nowrap}
+  .corridor-caption{bottom:24px;right:auto}
+  .corridor-sub{display:none}
+  .corridor-arrows{left:auto;right:16px;bottom:84px}
+}
+@media (prefers-reduced-motion:reduce){
+  .corridor-auth .rise>span{animation:none!important;transform:none}
+  .corridor-veil,.corridor-auth-panel,.corridor-arrows,.lab-focus-card{transition:none!important}
+}
