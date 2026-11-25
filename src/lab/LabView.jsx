@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import CORE from './core.js';
-import { S, rt, ACT, useLab, shown, subscribe, voiceAvailable } from './store.js';
+import { S, rt, ACT, useLab, shown, subscribe, voiceAvailable, chatOf, labContext, labFallback } from './store.js';
 import { benchSVG, partIcon, plotScope } from './draw.js';
 import { createLab3D } from './scene3d.js';
+import { askNour, nourMode, onNourMode } from '../nour.js';
 import CircuitBoard from './CircuitBoard.jsx';
 
 const { EXPERIMENTS, partLabel, fmtI, fmtV, fmtT } = CORE;
@@ -69,6 +70,44 @@ function Avatar() {
   );
 }
 
+function LabChat({ folded }) {
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [stream, setStream] = useState('');
+  const [, setTick] = useState(0);
+  const logRef = useRef(null), ctrl = useRef(null);
+  const chat = chatOf(S.exp);
+  useEffect(() => onNourMode(() => setTick(t => t + 1)), []);
+  useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [chat.length, stream, busy, folded]);
+  useEffect(() => () => ctrl.current && ctrl.current.abort(), []);
+  async function send(e) {
+    e.preventDefault(); const text = draft.trim(); if (!text || busy) return;
+    setDraft(''); ACT.userSays(text); setBusy(true); setStream('');
+    const c = new AbortController(); ctrl.current = c;
+    let reply = null;
+    try { reply = await askNour({ kind: 'lab', history: chatOf(S.exp), ctx: labContext(), onText: t => setStream(t), signal: c.signal }); } catch (err) { reply = null; }
+    if (c.signal.aborted) return;
+    setBusy(false); setStream('');
+    ACT.nourSays(reply && reply.text ? reply.text : labFallback(text));
+  }
+  const mode = nourMode();
+  const shownMsgs = folded ? chat.filter(m => m.role === 'nour').slice(-1) : chat;
+  return (
+    <>
+      <div className={'nchat-log' + (folded ? ' folded' : '')} ref={logRef} aria-live="polite">
+        {shownMsgs.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text}</p>)}
+        {busy && <p className="nmsg nour">{stream || <span className="dots" aria-label="Nour is thinking"><i /><i /><i /></span>}</p>}
+      </div>
+      <form className="nchat-input" onSubmit={send}>
+        <label htmlFor="nour-text" className="sr-only">Ask Nour</label>
+        <input id="nour-text" value={draft} onChange={e => setDraft(e.target.value)} placeholder="Ask Nour about your circuit…" autoComplete="off" maxLength={500} />
+        <button type="submit" className="hbtn small send-n" disabled={!draft.trim() || busy}>Send</button>
+      </form>
+      {!folded && <p className="nchat-mode">{mode === 'claude' ? 'Answers with Claude, from your bench state' : mode === 'server' ? 'Gemini answers from your bench state' : 'Offline answers from your bench state'}</p>}
+    </>
+  );
+}
+
 function NourHud({ open, setOpen }) {
   const exp = S.exp, E = EXPERIMENTS[exp], m = S.last ? S.last.mistake : null, lv = S.level[exp] || 0;
   const lm = S.lastMistake[exp], canMore = lm && lm !== 'success' && lm !== 'burnt_led' && lv < 3;
@@ -84,7 +123,7 @@ function NourHud({ open, setOpen }) {
         <button type="button" className="hud-icon fold" aria-expanded={open} aria-label={open ? 'Fold Nour' : 'Open Nour'} onClick={() => setOpen(!open)}>{open ? '–' : '+'}</button>
         <button type="button" className="hud-icon fold" aria-label="Hide Nour" title="Hide" onClick={() => ACT.panel('nour')}>×</button>
       </div>
-      <p className="bubble" aria-live="polite">{S.say}</p>
+      <LabChat folded={!open} />
       {open && <>
         {S.question && (
           <div className="check">

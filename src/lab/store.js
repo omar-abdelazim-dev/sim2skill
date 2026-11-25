@@ -15,7 +15,7 @@ const blank = V => ({ V, R: null, D: null, reversed: false, burnt: false });
 export const S = { exp: 'ohm', bench: Object.fromEntries(Object.keys(EXPERIMENTS).map(id=>[id,startingBench(id)])), lab: null, closed: false, status: 'idle', active: 'R', last: null,
   lastMistake: {}, level: {}, ctx: {}, completed: {}, stats: { attempts: 0, mistakes: 0, hints: 0, counts: {} }, log: [], say: EXPERIMENTS.ohm.intro,
   question: null, voice: false, src: 'example', csv: false, mode: '3d',
-  panels: { meters: true, nour: true, kit: true } };
+  panels: { meters: true, nour: true, kit: true }, chat: {} };
 // runtime values that are not part of the lab record
 export const rt = { scope: null, speaking: false, lab: null, entering: false, held: null, heldRev: false, aim: null, joy: null };
 
@@ -47,7 +47,57 @@ export function speak(text) {
   }
 }
 export function stopVoice() { try { if (caps.tts) caps.tts.stop(); if (canBrowserSpeak) speechSynthesis.cancel(); } catch (e) { /* ignore */ } setSpeaking(false); }
-function say(text, aloud) { S.say = text; if (aloud) speak(text); else { clearTimeout(speakTimer); setSpeaking(false); } }
+function say(text, aloud) { S.say = text; pushChat('nour', text); if (aloud) speak(text); else { clearTimeout(speakTimer); setSpeaking(false); } }
+
+/* ---------- talking with Nour inside a lab ---------- */
+export const chatOf = exp => S.chat[exp] || (S.chat[exp] = []);
+export function pushChat(role, text) {
+  if (!text) return; const c = chatOf(S.exp), last = c[c.length - 1];
+  if (last && last.role === role && last.text === text) return;
+  c.push({ role, text }); if (c.length > 40) c.splice(0, c.length - 40);
+}
+const round = v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v;
+/** What Nour knows about the bench right now: the same state the detector reads. */
+export function labContext() {
+  const exp = S.exp, E = EXPERIMENTS[exp], b = S.bench[exp], sim = shown();
+  const parts = {}; E.slots.forEach(sl => { parts[sl.name] = b[sl.id] ? partLabel(b[sl.id]) + (sl.id === 'D' && b.reversed ? ' (reversed)' : '') + (sl.id === 'D' && b.burnt ? ' (burnt)' : '') : 'empty'; });
+  const available = {}; E.slots.forEach(sl => { available[sl.name] = sl.options.map(partLabel); });
+  const readings = sim ? Object.fromEntries(Object.entries(sim).filter(([, v]) => ['number', 'string', 'boolean'].includes(typeof v)).map(([k, v]) => [k, round(v)])) : null;
+  return { title: S.lab?.title || E.title, goal: E.goal, concept: E.spec, instructions: S.lab?.instructions,
+    state: { supply_V: b.V, parts_on_bench: parts, parts_table: available, switch: S.closed ? 'closed' : 'open', readings,
+      units: 'I in amps, V in volts, tau in seconds',
+      detected_mistake: S.last && S.last.exp === exp && sim ? S.last.mistake : null, hint_level: S.level[exp] || 0,
+      holding: rt.held ? partLabel(rt.held.id) : null, solved: !!S.completed[exp] } };
+}
+/** Offline answers when no AI is available: built only from the simulator and the lab's own texts. */
+export function labFallback(text) {
+  // A detected mistake always comes first, like a real instructor who spots it on the bench.
+  const exp0 = S.exp, m0 = S.lastMistake[exp0], c0 = S.ctx[exp0];
+  const answer = labAnswer(text);
+  if (m0 && m0 !== 'success' && c0 && !answer.fromHint) {
+    const warn = hintText(exp0, m0, S.level[exp0] || 1, c0.b, c0.sim);
+    return answer.text && answer.text !== warn ? `First, something on your bench needs fixing. ${warn} Then, about your question: ${answer.text}` : warn;
+  }
+  return answer.text;
+}
+function labAnswer(text) {
+  const exp = S.exp, E = EXPERIMENTS[exp], b = S.bench[exp], t = text.toLowerCase(), m = S.lastMistake[exp], c = S.ctx[exp];
+  const words = t.match(/[a-z؀-ۿ]{3,}/g) || [];
+  let best = null, score = 0;
+  E.asks.forEach(a => { const qw = a[0].toLowerCase().match(/[a-z]{4,}/g) || []; const sc = qw.filter(w => words.includes(w)).length; if (sc > score) { score = sc; best = a; } });
+  if (best && score >= 2) return { text: best[1] };
+  if (/hint|help|stuck|wrong|why|next|what (do|should) i|مساعد|ساعد|غلط|ليه|ازاي|إزاي|اعمل/.test(t)) {
+    if (m && m !== 'success' && c) { const lv = Math.min((S.level[exp] || 1) + 1, 3); S.level[exp] = lv; S.stats.hints++; return { text: hintText(exp, m, lv, c.b, c.sim), fromHint: true }; }
+    const empty = E.slots.filter(sl => !b[sl.id]).map(sl => sl.name.toLowerCase());
+    if (empty.length) return { text: `Start by filling the ${empty.join(' and ')}. Pick a part from the parts table, then think about what it will do to the current.` };
+    return { text: S.closed ? 'Read the meter and compare it with the goal. Is it too high or too low?' : 'Your circuit is built. Close the switch and I will check it with you.' };
+  }
+  if (/goal|target|aim|task|هدف|المطلوب/.test(t)) return { text: E.goal };
+  const sim = shown();
+  if (/read|current|volt|measure|meter|قراء|تيار|جهد/.test(t)) return { text: sim ? `Your circuit is live. The simulator reads ${Object.entries(sim).filter(([, v]) => typeof v === 'number').slice(0, 3).map(([k, v]) => `${k} = ${round(v)}`).join(', ')}. Compare that with the goal: ${E.goal}` : 'The switch is open, so there is no reading yet. Close the switch to measure.' };
+  if (S.completed[exp]) return { text: `You solved this one. ${E.check.right} Try changing one part and predict the result before you test it.` };
+  return { text: `I answer from your bench. Ask me for a hint, the goal, or what your reading means. You can also ask: ${E.asks.map(a => '"' + a[0] + '"').join(' or ')}` };
+}
 
 /* ---------- lab logic ---------- */
 function logLine(text) { const d = new Date(); S.log.unshift({ t: d.toTimeString().slice(0, 8), text }); S.log.length = Math.min(S.log.length, 7); }
@@ -131,7 +181,10 @@ export const ACT = {
     S.level[exp] = Math.min((S.level[exp] || 1) + 1, 3); S.stats.hints++; if (S.last) S.last.level = S.level[exp];
     logLine(`Student asked for more help → level ${S.level[exp]}`); say(hintText(exp, m, S.level[exp], c.b, c.sim), true); bump(); },
   voice() { S.voice = !S.voice; if (!S.voice) stopVoice(); bump(); },
-  ask(i) { const a = EXPERIMENTS[S.exp].asks[+i]; logLine(`Student asked: ${a[0]}`); say(a[1], true); bump(); },
+  // the student typed to Nour: record it; Nour's reply goes through say() so captions and voice still work
+  userSays(text) { pushChat('user', text); logLine(`Student asked Nour: ${text.slice(0, 60)}`); bump(); },
+  nourSays(text) { say(text, true); bump(); },
+  ask(i) { const a = EXPERIMENTS[S.exp].asks[+i]; pushChat('user', a[0]); logLine(`Student asked: ${a[0]}`); say(a[1], true); bump(); },
   answer(i) { if (!S.question || S.question.picked !== null) return; S.question.picked = +i; const c = EXPERIMENTS[S.exp].check;
     logLine(`Check question answered ${+i === c.correct ? 'correctly' : 'incorrectly'}`); say(+i === c.correct ? c.right : c.wrong, true); bump(); },
   src(id) { S.src = id; S.csv = false; bump(); },

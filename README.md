@@ -28,10 +28,25 @@ Open the built site through a server (`npm run preview`), not by double-clicking
 | `src/lab/LabView.jsx`, `Dashboard.jsx` | Lab panels and the instructor dashboard |
 
 ## The chat's AI
-Inside claude.ai the page asks Claude through the artifact's `sample` capability and can call an
-`open_lab` tool to walk the student into a lab. Outside claude.ai (for example `npm run dev`), there is no
-Claude connection, so Nour answers with keyword matching. To use your own backend later, replace the
-`caps.sample(...)` call in `src/home/Chat.jsx` with a call to your API.
+You can chat with Nour on the home page and inside every lab (the box under her messages). Both
+chats go through `src/nour.js`, which tries three sources in order:
+
+1. **Claude inside claude.ai**: the artifact's `sample` capability.
+2. **The local server with Google Gemini**: `POST /api/nour` in `server/platform.mjs`, used when
+   `GEMINI_API_KEY` is set. The key stays on the server, and the browser never sees it.
+3. **Offline answers**: keyword matching on the home page, and in labs, answers built from the live bench
+   state (goal, readings, the detected mistake, and the hint ladder).
+
+In a lab, Nour's prompt carries the simulator's real state (`labContext()` in `src/lab/store.js`), so she
+talks about the student's actual circuit and is told never to invent readings. The prompts live in
+`shared/nourPrompt.js`.
+
+To turn on Gemini answers, copy `.env.example` to `.env` in the project folder and paste your key from
+Google AI Studio after `GEMINI_API_KEY=`. `.env` is git-ignored, so the key is never committed. Restart
+`npx vite --host` after changing it. A key set in the shell (`$env:GEMINI_API_KEY="..."`) also works and
+takes priority. The default model is `gemini-3.5-flash-lite`; set `GEMINI_MODEL` to use another.
+
+If Gemini fails or is busy, Nour falls back to the offline answers. The server limits each IP to 60 Nour requests per 10 minutes.
 
 ## Student and tutor platform
 

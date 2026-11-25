@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Ring from './Ring.jsx';
 import Chat from './Chat.jsx';
 import CardFace from './CardFace.jsx';
+import CorridorBackdrop from './CorridorBackdrop.jsx';
 import { LIVE } from '../labs.js';
 
 const DETAILS = {
@@ -15,7 +16,8 @@ export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef 
   const [gallery, setGallery] = useState(false);
   useEffect(() => { onIntroDone(); }, []);
   const ask = () => { document.getElementById('nour-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); chatRef.current?.focus(); };
-  return (
+  return (<>
+    <CorridorBackdrop />
     <main className={'home-v2' + (transit ? ' is-opening' : '')}>
       <section className="home-intro" aria-labelledby="home-title">
         <div className="intro-copy">
@@ -50,5 +52,5 @@ export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef 
       {gallery && <div id="lab-gallery" className="home-gallery"><p>Drag to explore the gallery. Labs marked “Soon” are previews.</p><div className="gallery-scene"><Ring ref={ringRef} stage="done" active={active && !transit} focusLab={null} onOpen={onOpenLab} onSoon={lab => {chatRef.current?.soon(lab);ask();}} onExpanded={() => {}}/></div></div>}
       <footer className="home-footer"><span>Sim2Skill <span className="footer-caption">· Learning through doing.</span></span><span>Built for curious minds. <span className="footer-spark">✳</span></span></footer>
     </main>
-  );
+  </>);
 }

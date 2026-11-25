@@ -1,29 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { caps, onCaps } from '../claude.js';
+import { onCaps } from '../claude.js';
+import { askNour, nourMode, onNourMode } from '../nour.js';
 import { LABS, LIVE } from '../labs.js';
 import { fallbackReply } from './guide.js';
 import { S, ACT, speak, useLab, voiceAvailable, rt } from '../lab/store.js';
 
 const GREETING = "Hi, I’m Nour. Think of me as your lab partner. Tell me what you’d like to explore, or pick an experiment to get started.";
-
-const SYSTEM = `You are Nour, the AI lab instructor inside Sim2Skill, a virtual electronics lab for university students in Egypt.
-The student is on the home screen, choosing a lab. Seven electronics labs are open, each in a separate room:
-- series: add two series resistances.
-- parallel: measure two branch currents.
-- divider: produce a target output voltage.
-- diode: explore silicon diode direction and voltage drop.
-- ohm: "Ohm's law". Set a supply voltage and pick a resistor so exactly 10 mA flows.
-- led: "LED with a resistor". Light a red LED from a 9 V battery at a safe current (2 to 20 mA) without burning it.
-- rc: "RC charging". Choose a resistor and a capacitor so the capacitor reaches 63% of 5 V in 1 second.
-Coming soon, not open yet: simple pendulum, lens focal length, Hooke's law spring, projectile launch, acid-base titration, flame test, reaction rates.
-Rules:
-- Reply in the student's language. Egyptian Arabic, standard Arabic, French and English are all fine.
-- Under 60 words, warm and direct. Plain sentences, no headings, no markdown.
-- Help the student choose. If it is unclear, ask what they are studying or what they want to practise.
-- When the student asks to start, open, try or go to a lab, or names an experiment one of the seven labs covers, call the open_lab tool with that lab's id and say in one short sentence that you are taking them there.
-- Never say a coming-soon lab is open. Say it is on the roadmap and suggest the closest open lab.
-- You may explain a concept briefly, but steer the student into a lab to practise it.`;
-
 
 const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
   useLab();
@@ -31,9 +13,10 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [, setCapsTick] = useState(0);
-  const logRef = useRef(null), inputRef = useRef(null), abortRef = useRef(null), sampleOff = useRef(false);
+  const logRef = useRef(null), inputRef = useRef(null), abortRef = useRef(null);
 
   useEffect(() => onCaps(() => setCapsTick(t => t + 1)), []);
+  useEffect(() => onNourMode(() => setCapsTick(t => t + 1)), []);
   useEffect(() => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; }, [msgs]);
 
   const nourSays = (text, extra = {}) => { setMsgs(m => [...m, { role: 'nour', text, ...extra }]); if (S.voice) speak(text); };
@@ -47,38 +30,22 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
   async function send(text) {
     text = text.trim(); if (!text || busy || disabled) return;
     const history = [...msgs, { role: 'user', text }];
-    setMsgs(history); setDraft('');
-    const useClaude = caps.sample && !sampleOff.current;
-    if (!useClaude) {
-      const r = fallbackReply(text); setBusy(true);
-      setTimeout(() => { setBusy(false); nourSays(r.text, r.labs ? { labs: true } : {}); if (r.open) setTimeout(() => onOpenLab(r.open), 500); }, 450);
-      return;
-    }
-    setBusy(true);
-    setMsgs(m => [...m, { role: 'nour', text: '', streaming: true }]);
-    let pending = null;
-    const transcript = history.slice(-12).map(m => (m.role === 'user' ? 'Student: ' : 'Nour: ') + m.text).join('\n');
-    const input = `${SYSTEM}\n\nConversation so far:\n${transcript}\n\nWrite Nour's next reply.`;
+    setMsgs([...history, { role: 'nour', text: '', streaming: true }]); setDraft(''); setBusy(true);
     const ctrl = new AbortController(); abortRef.current = ctrl;
-    const setLast = (t, done) => setMsgs(m => { const c = m.slice(); c[c.length - 1] = { role: 'nour', text: t, streaming: !done }; return c; });
-    try {
-      const out = await caps.sample(input, {
-        cache: false, modelTier: 'quick', signal: ctrl.signal,
-        onText: ({ text: t }) => setLast(t === 'Thinking...' ? '' : t, false),
-        tools: [{ name: 'open_lab', description: 'Open one of the seven live labs and walk the student into it.',
-          inputSchema: { type: 'object', properties: { lab: { type: 'string', enum: LIVE.map(l => l.id) } }, required: ['lab'] },
-          execute: inp => { if (LIVE.some(l => l.id === inp.lab)) pending = inp.lab; return { opened: inp.lab }; } }]
-      });
-      const finalText = (out && out.text) || (pending ? `Taking you to the ${LABS.find(l => l.id === pending).title} lab now.` : '');
-      setLast(finalText, true); if (S.voice && finalText) speak(finalText);
-      if (pending) setTimeout(() => onOpenLab(pending), 500);
-    } catch (err) {
-      const code = err && err.code;
-      if (code === 'not_granted') sampleOff.current = true;
-      const r = fallbackReply(text);
-      setMsgs(m => { const c = m.slice(); c[c.length - 1] = { role: 'nour', text: code === 'rate_limited' ? 'I am getting a lot of questions right now. Pick a lab below and we can start.' : r.text, labs: code === 'rate_limited' || !!r.labs }; return c; });
-      if (r.open && code !== 'rate_limited') setTimeout(() => onOpenLab(r.open), 500);
-    } finally { setBusy(false); abortRef.current = null; }
+    const setLast = (t, done, extra = {}) => setMsgs(m => { const c = m.slice(); c[c.length - 1] = { role: 'nour', text: t, streaming: !done, ...extra }; return c; });
+    let r = null;
+    try { r = await askNour({ kind: 'home', history, onText: t => setLast(t, false), signal: ctrl.signal }); } catch (err) { r = null; }
+    if (ctrl.signal.aborted) return;
+    if (r && (r.text || r.open)) {
+      const finalText = r.text || `Taking you to the ${LABS.find(l => l.id === r.open).title} lab now.`;
+      setLast(finalText, true); if (S.voice) speak(finalText);
+      if (r.open) setTimeout(() => onOpenLab(r.open), 500);
+    } else {
+      const f = fallbackReply(text);
+      setLast(f.text, true, f.labs ? { labs: true } : {}); if (S.voice) speak(f.text);
+      if (f.open) setTimeout(() => onOpenLab(f.open), 500);
+    }
+    setBusy(false); abortRef.current = null;
   }
 
   const pick = lab => { if (busy || disabled) return; setBusy(true); setMsgs(m => [...m, { role: 'user', text: `Take me to the ${lab.title} lab.` }]); setTimeout(() => { nourSays(`Opening the ${lab.title} lab. ${lab.blurb}`); setTimeout(() => {setBusy(false);onOpenLab(lab.id);}, 450); }, 250); };
@@ -91,7 +58,7 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
           <rect className="head" x="7" y="13" width="50" height="44" rx="13" /><rect x="13" y="22" width="38" height="16" rx="8" fill="#2B424C" />
           <circle className="eye" cx="24" cy="30" r="4.5" /><circle className="eye" cx="40" cy="30" r="4.5" /><rect className="mouth" x="24" y="45" width="16" height="3.4" rx="1.7" />
         </svg>
-        <div className="who"><b>Nour</b><span>{caps.sample && !sampleOff.current ? 'Lab instructor · answers with Claude' : 'Lab instructor · offline answers'}</span></div>
+        <div className="who"><b>Nour</b><span>{{ claude: 'Lab instructor · answers with Claude', server: 'Lab instructor · Gemini answers' }[nourMode()] || 'Lab instructor · offline answers'}</span></div>
         {voiceAvailable() && <button type="button" className="ghost small" aria-pressed={S.voice} onClick={() => ACT.voice()}>{S.voice ? 'Voice on' : 'Voice off'}</button>}
       </header>
       <div className="chat-log" ref={logRef} aria-live="polite">

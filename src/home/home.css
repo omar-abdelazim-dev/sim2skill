@@ -13,3 +13,17 @@
 @media(max-width:700px){.nav{height:76px;padding:0 20px;gap:12px}.wordmark{font-size:26px}.wmRest{display:none!important}.links{font-size:13px;gap:17px}.home-v2{padding:0 20px}.home-intro{grid-template-columns:1fr;gap:26px;padding:35px 0 30px}.home-kicker{font-size:10px;letter-spacing:1px}.intro-copy h1{font-size:44px;letter-spacing:-1.4px;margin-top:18px}.intro-copy>p{font-size:16px}.intro-actions{gap:20px;flex-wrap:wrap;margin-top:22px}.home-primary{font-size:14px}.learning-note{transform:none;max-width:none;padding:20px}.learning-note-top{font-size:11px;line-height:1.5}.learning-note-top br{display:none}.note-icon{font-size:32px}.learning-note>p{font-size:26px;margin:17px 0}.note-bottom{margin-top:17px;padding-top:12px}.learning-note::before{display:none}.home-section-head h2{font-size:21px;margin-bottom:18px}.experiment-grid{grid-template-columns:1fr;gap:18px}.experiment-art{aspect-ratio:1.9}.experiment-copy{min-height:0;padding:22px}.experiment-copy h3{font-size:30px}.experiment-copy p{font-size:16px;min-height:0;margin-bottom:20px}.experiment-meta{font-size:13px}.experiment-task{margin-bottom:18px;font-size:13px}.experiment-open{font-size:15px;min-height:48px}.experiment-level{font-size:13px}.bench-reassurance p{font-size:13px;line-height:1.7}.home-v2 .chat{height:420px}.home-workspace{gap:20px;padding-bottom:28px}.explore-section{padding:22px;flex-direction:column;align-items:stretch;gap:20px}.explore-copy{gap:14px}.explore-symbol{font-size:30px}.explore-copy h2{font-size:23px}.explore-copy p{font-size:14px}.home-footer{flex-direction:column;gap:12px}.gallery-scene{height:320px}.home-v2 .chat-head .who span{font-size:12px}.home-v2 .msg p{font-size:16px}.home-v2 .chat-input input{font-size:16px}.home-v2 .chat .ghost{font-size:12px}.home-v2 .chat-suggestions button{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.home-v2{animation:none}.experiment-card:hover{transform:none}html{scroll-behavior:auto}}
 .home-v2 .experiment-copy p,.home-v2 .msg p{font-size:16px}.experiment-copy p{min-height:82px}.experiment-meta{font-size:13px}.gallery-scene .wall{bottom:50%;height:1px}.home-v2 .gallery-scene .rcard:focus-visible .lbar{clip-path:inset(0 round 12px)}
+
+/* Home backdrop: the sign-in corridor, fixed behind the page */
+.home-backdrop{position:fixed;inset:0;z-index:0;pointer-events:none;background:var(--paper)}
+.home-backdrop-stage{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease-out}
+.home-backdrop.in .home-backdrop-stage{opacity:1}
+.home-backdrop-stage canvas{display:block;width:100%;height:100%}
+.home-backdrop-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(10,14,17,.72),rgba(10,14,17,.28) 55%,rgba(10,14,17,.5)),linear-gradient(rgba(10,14,17,0) 55%,rgba(10,14,17,.55))}
+body.home-corridor .platform-nav{position:relative;z-index:5}
+.home-v2{position:relative;z-index:1}
+.home-v2 .learning-note,.home-v2 .experiment-card,.home-v2 .chat,.home-v2 .explore-section,.home-v2 .home-gallery{background-color:rgba(12,18,23,.84);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);box-shadow:0 24px 60px rgba(0,0,0,.35)}
+.home-v2 .experiment-card{background:rgba(12,18,23,.84)}
+.home-v2 .explore-section{background:linear-gradient(110deg,rgba(21,35,43,.86),rgba(12,18,23,.84))}
+.home-v2 .home-intro h1,.home-v2 .home-intro p,.home-v2 .home-kicker{text-shadow:0 2px 18px rgba(0,0,0,.6)}
+

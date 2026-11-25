@@ -3,13 +3,17 @@ import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import {resolve,join} from 'node:path';
 import CORE from '../src/lab/core.js';
 import {BASE,buildDefinition,validateConfig,findSolution,runConfigured} from '../shared/labConfig.js';
-export async function createPlatformHandler(directory=process.env.DATA_DIR||'.data'){
+import {homePrompt,labPrompt} from '../shared/nourPrompt.js';
+import {LIVE} from '../src/labs.js';
+// Reads GEMINI_* settings from a git-ignored .env file in the project folder. Values already set in the shell win.
+export async function loadEnvFile(file=resolve('.env')){let text;try{text=await readFile(file,'utf8');}catch{return;}for(const line of text.split(/\r?\n/)){const m=line.match(/^\s*(GEMINI_API_KEY|GEMINI_MODEL)\s*=\s*(.*?)\s*$/);if(m&&!process.env[m[1]]){const v=m[2].replace(/^(['"])(.*)\1$/,'$2');if(v)process.env[m[1]]=v;}}}
+export async function createPlatformHandler(directory=process.env.DATA_DIR||'.data'){await loadEnvFile();
  const dir=resolve(directory);await mkdir(dir,{recursive:true});const file=join(dir,'platform.json');let db;
  try{db=JSON.parse(await readFile(file,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;db={users:[{id:'sim2skill',name:'Sim2Skill team',role:'tutor',bio:'Hands-on electronics experiments, built for curious minds.'}],labs:Object.entries(CORE.EXPERIMENTS).map(([template,e])=>({id:template,authorId:'sim2skill',template,title:e.title,description:e.intro,outcomes:e.goal,instructions:'Explore the components, build your circuit, and close the switch. Use Nour’s hints to diagnose mistakes and complete the understanding check.',status:'published',createdAt:new Date().toISOString()})),progress:[]};}
  // Add new built-in labs without overwriting accounts, authored labs, or practice history.
  for(const [template,e] of Object.entries(BASE))if(!db.labs.some(l=>l.id===template))db.labs.push({id:template,authorId:'sim2skill',template,title:e.title,description:e.intro,outcomes:e.goal,instructions:'Choose your components, predict the result, and run this dedicated circuit. Use the measurements and hints to meet the goal.',status:'published',createdAt:new Date().toISOString()});
 
- let queue=Promise.resolve();const save=()=>{queue=queue.catch(()=>{}).then(async()=>{await writeFile(join(dir,'platform.tmp'),JSON.stringify(db,null,2),{mode:0o600});await rename(join(dir,'platform.tmp'),file);});return queue;};await save();const sessions=new Map(),limits=new Map();
+ let queue=Promise.resolve();const save=()=>{queue=queue.catch(()=>{}).then(async()=>{await writeFile(join(dir,'platform.tmp'),JSON.stringify(db,null,2),{mode:0o600});await rename(join(dir,'platform.tmp'),file);});return queue;};await save();const sessions=new Map(),limits=new Map(),nourLimits=new Map();
  const publicUser=u=>u&&({id:u.id,name:u.name,role:u.role,bio:u.bio||''});const enrich=l=>({...l,author:publicUser(db.users.find(u=>u.id===l.authorId)),goal:buildDefinition(l.template,l.config).goal});
  function fail(status,message){throw Object.assign(Error(message),{status});}
  function clean(data){const o={};for(const [k,max]of Object.entries({title:100,description:700,outcomes:1500,instructions:6000})){if(typeof data[k]!=='string'||data[k].trim().length>max)fail(400,`Please provide ${k} (up to ${max} characters).`);o[k]=data[k].trim();}if(!CORE.EXPERIMENTS[data.template])fail(400,'Choose a supported simulation.');if(o.title.length<3)fail(400,'Give your lab a title of at least 3 characters.');let config;try{config=validateConfig(data.template,data.config);}catch(e){fail(400,e.message);}return {...o,template:data.template,config};}
@@ -20,6 +24,24 @@ export async function createPlatformHandler(directory=process.env.DATA_DIR||'.da
  let data={};if(['POST','PUT','PATCH'].includes(req.method)){let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>24000)fail(413,'Request is too large.');}try{data=JSON.parse(raw||'{}');}catch{fail(400,'Invalid JSON.');}}
  const requireUser=()=>{if(!user)fail(401,'Please sign in to continue.');return user;};const tutor=()=>{requireUser();if(user.role!=='tutor')fail(403,'Only tutors can create and submit labs.');};const owned=id=>{tutor();const l=db.labs.find(l=>l.id===id);if(!l)fail(404,'Lab not found.');if(l.authorId!==user.id)fail(403,'This lab belongs to another tutor.');return l;};
  const p=url.pathname.split('/').filter(Boolean).slice(1);
+ // Nour's AI answers with Google Gemini. Only active when GEMINI_API_KEY is set; the key never leaves the server.
+ if(p[0]==='nour'&&req.method==='GET')return reply(200,{ai:!!process.env.GEMINI_API_KEY});
+ if(p[0]==='nour'&&req.method==='POST'){
+  const key=process.env.GEMINI_API_KEY;if(!key)fail(503,'Nour AI is not configured on this server.');
+  const ip=req.socket.remoteAddress;let rate=nourLimits.get(ip);if(!rate||rate.until<Date.now()){rate={count:0,until:Date.now()+600000};nourLimits.set(ip,rate);}if(++rate.count>60)fail(429,'Too many questions. Please wait a few minutes.');
+  if(!['home','lab'].includes(data.kind)||!Array.isArray(data.messages)||!data.messages.length||data.messages.length>20)fail(400,'Invalid conversation.');
+  const merged=[];for(const m of data.messages){if(!['user','assistant'].includes(m?.role)||typeof m.content!=='string'||!m.content.trim()||m.content.length>2000)fail(400,'Invalid message.');const last=merged[merged.length-1];if(last&&last.role===m.role)last.content+='\n'+m.content;else merged.push({role:m.role,content:m.content});}
+  while(merged.length&&merged[0].role!=='user')merged.shift();if(!merged.length||merged[merged.length-1].role!=='user')fail(400,'The conversation must end with a question.');
+  const system=data.kind==='lab'?labPrompt(data.ctx&&typeof data.ctx==='object'?data.ctx:{}):homePrompt(LIVE);
+  const model=String(process.env.GEMINI_MODEL||'gemini-3.5-flash-lite').replace(/[^a-z0-9.\-]/gi,'');
+  const body={systemInstruction:{parts:[{text:system}]},contents:merged.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),generationConfig:{maxOutputTokens:1024,temperature:0.6}};
+  let r;try{r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'x-goog-api-key':key,'content-type':'application/json'},body:JSON.stringify(body)});}catch{fail(502,'Nour could not reach the AI service.');}
+  if(r.status===429)fail(429,'The AI is busy right now. Please wait a moment and ask again.');
+  if(!r.ok){console.error('Nour AI error',r.status,(await r.text()).slice(0,300));fail(502,'Nour could not reach the AI service.');}
+  const j=await r.json();const text=(j.candidates?.[0]?.content?.parts||[]).filter(x=>typeof x.text==='string'&&!x.thought).map(x=>x.text).join('').trim();
+  if(!text)fail(502,'Nour could not answer that one. Try asking another way.');
+  return reply(200,{text});
+ }
  if(p[0]==='session'&&req.method==='GET')return reply(200,{user:publicUser(user)||null});
  if(['signup','login'].includes(p[0])&&req.method==='POST'){
  const ip=req.socket.remoteAddress;let rate=limits.get(ip);if(!rate||rate.until<Date.now()){rate={count:0,until:Date.now()+900000};limits.set(ip,rate);}if(++rate.count>30)fail(429,'Too many sign-in attempts. Please try again later.');
