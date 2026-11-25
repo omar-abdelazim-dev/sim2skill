@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import Ring from './Ring.jsx';
 import Chat from './Chat.jsx';
 import CardFace from './CardFace.jsx';
 import CorridorBackdrop from './CorridorBackdrop.jsx';
@@ -13,7 +12,6 @@ const DETAILS = {
 
 export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef }) {
   const chatRef = useRef(null);
-  const [gallery, setGallery] = useState(false);
   useEffect(() => { onIntroDone(); }, []);
   const ask = () => { document.getElementById('nour-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); chatRef.current?.focus(); };
   return (<>
@@ -48,8 +46,7 @@ export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef 
         <aside className="instructor-section" id="nour-panel"><div className="home-section-head"><div><span className="section-kicker">A LITTLE GUIDANCE</span><h2>Never stuck for long.</h2></div></div><Chat ref={chatRef} onOpenLab={onOpenLab} disabled={!!transit}/></aside>
       </section>
 
-      <section className="explore-section" aria-label="Lab roadmap"><div className="explore-copy"><span className="explore-symbol" aria-hidden="true">⊞</span><div><h2>A whole world of “what if?”</h2><p>More electronics, physics, and chemistry experiments are on the way.</p></div></div><button className="home-outline" aria-expanded={gallery} aria-controls="lab-gallery" onClick={() => setGallery(v => !v)}>{gallery ? 'Close lab gallery' : 'Explore the lab gallery'}</button></section>
-      {gallery && <div id="lab-gallery" className="home-gallery"><p>Drag to explore the gallery. Labs marked “Soon” are previews.</p><div className="gallery-scene"><Ring ref={ringRef} stage="done" active={active && !transit} focusLab={null} onOpen={onOpenLab} onSoon={lab => {chatRef.current?.soon(lab);ask();}} onExpanded={() => {}}/></div></div>}
+      <section className="explore-section" aria-label="Lab roadmap"><div className="explore-copy"><span className="explore-symbol" aria-hidden="true">⊞</span><div><h2>A whole world of “what if?”</h2><p>More electronics, physics, and chemistry experiments are on the way.</p></div></div><a className="home-outline" href="#explore">Walk the lab gallery →</a></section>
       <footer className="home-footer"><span>Sim2Skill <span className="footer-caption">· Learning through doing.</span></span><span>Built for curious minds. <span className="footer-spark">✳</span></span></footer>
     </main>
   </>);

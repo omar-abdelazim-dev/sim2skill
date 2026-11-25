@@ -15,7 +15,7 @@ const Line = ({ i, children, k }) => <span className="rise" style={{ '--i': i }}
 const typing = el => el && (el.matches('input,textarea,select,[contenteditable="true"]'));
 
 // Sign-in / sign-up page: the existing form floats over a walkable corridor of framed labs.
-export default function CorridorAuth({ onAuth }) {
+export default function CorridorAuth({ onAuth, explore = false }) {
   const [signup, setSignup] = useState(true), [role, setRole] = useState('student');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [entered, setEntered] = useState(false), [exiting, setExiting] = useState(false);
@@ -71,9 +71,9 @@ export default function CorridorAuth({ onAuth }) {
   useLayoutEffect(() => {
     const card = cardRef.current; if (!card || !focus) return;
     if (matchMedia(SMALL_QUERY).matches) { card.style.left = ''; card.style.top = ''; return; }
-    const p = panelRef.current.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    const p = panelRef.current?.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
     const cx = (focus.rect.left + focus.rect.right) / 2;
-    const maxX = Math.max(16, p.left - 24 - w);
+    const maxX = Math.max(16, (p ? p.left - 24 : window.innerWidth - 16) - w);
     card.style.left = Math.min(maxX, Math.max(16, cx - w / 2)) + 'px';
     card.style.top = Math.min(window.innerHeight - h - 16, focus.rect.bottom + 18) + 'px';
   }, [focus]);
@@ -88,6 +88,7 @@ export default function CorridorAuth({ onAuth }) {
     } catch (err) { setError(err.message); setExiting(false); } finally { setBusy(false); }
   }
   function practise(lab) {
+    if (explore) { location.hash = 'details/' + lab.id; return; }
     setNextLab(lab);
     location.hash = 'signin?next=' + encodeURIComponent('details/' + lab.id);
     sceneRef.current?.stepBack();
@@ -96,10 +97,10 @@ export default function CorridorAuth({ onAuth }) {
   }
   function toggle() { setSignup(!signup); setError(''); setSwapped(true); }
 
-  const headline = signup ? 'Step inside.' : 'Welcome back.';
+  const headline = explore ? 'Walk the lab.' : signup ? 'Step inside.' : 'Welcome back.';
   const focusing = mode === 'focus';
   return (
-    <main ref={rootRef} className={'corridor-auth' + (entered ? ' in' : '') + (exiting ? ' exiting' : '') + (fallback ? ' no-webgl' : '')}>
+    <main ref={rootRef} className={'corridor-auth' + (explore ? ' corridor-explore' : '') + (entered ? ' in' : '') + (exiting ? ' exiting' : '') + (fallback ? ' no-webgl' : '')}>
       <div className="corridor-first">
         <div ref={stageRef} className="corridor-stage" aria-hidden="true">
           {fallback && <div className="corridor-fallback">{LIVE.slice(0, 3).map(l => <div key={l.id} className="corridor-fallback-frame"><CardFace lab={l} /></div>)}</div>}
@@ -115,13 +116,13 @@ export default function CorridorAuth({ onAuth }) {
             <Line i={1} k={focusing ? 'f1' : 'w1'}>{focusing ? 'Esc or click away to step back' : 'Click a lab to look closer'}</Line>
           </p>}
           <div className="corridor-caption">
-            <div className="corridor-kicker"><Line i={2}>A PLACE FOR EVERY CURIOUS MIND</Line></div>
+            <div className="corridor-kicker"><Line i={2}>{explore ? 'THE LAB GALLERY · 7 OPEN, MORE ON THE WAY' : 'A PLACE FOR EVERY CURIOUS MIND'}</Line></div>
             <h1 className={swapped ? 'swapped' : undefined}><Line i={3} k={headline}>{headline}</Line></h1>
-            <p className="corridor-sub"><Line i={4}>Practise as a student. Share what you know as a tutor.</Line></p>
+            <p className="corridor-sub"><Line i={4}>{explore ? 'Click any lab to look closer. Open labs start in one click.' : 'Practise as a student. Share what you know as a tutor.'}</Line></p>
           </div>
-          <button type="button" className="corridor-jump" onClick={() => panelRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })}>
+          {explore ? <a className="corridor-jump corridor-home" href="#home">← Back home</a> : <button type="button" className="corridor-jump" onClick={() => panelRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })}>
             {signup ? 'Create account' : 'Sign in'} ↓
-          </button>
+          </button>}
         </div>
         <div ref={cardRef} className={'lab-focus-card' + (focus ? ' shown' : '')} role="status" aria-live="polite">
           {focus && <>
@@ -129,13 +130,13 @@ export default function CorridorAuth({ onAuth }) {
             <h2>{focus.lab.title}</h2>
             {focus.lab.blurb && <p>{focus.lab.blurb}</p>}
             {focus.lab.live
-              ? <button type="button" className="lab-focus-go" onClick={() => practise(focus.lab)}>Sign in to practise this lab →</button>
+              ? <button type="button" className="lab-focus-go" onClick={() => practise(focus.lab)}>{explore ? 'Open this lab →' : 'Sign in to practise this lab →'}</button>
               : <p className="lab-focus-soon">Coming soon. Next on the roadmap.</p>}
           </>}
         </div>
       </div>
 
-      <form ref={panelRef} className="platform-page corridor-auth-panel" onSubmit={submit}>
+      {!explore && <form ref={panelRef} className="platform-page corridor-auth-panel" onSubmit={submit}>
         <h2>{signup ? 'Create your account' : 'Sign in'}</h2>
         {nextLab && <p className="corridor-next">After signing in you’ll go straight to <b>{nextLab.title}</b>.</p>}
         {signup && <>
@@ -157,7 +158,7 @@ export default function CorridorAuth({ onAuth }) {
         {error && <div className="platform-error" role="alert">{error}</div>}
         <button className="home-primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
         <button type="button" className="platform-text" onClick={toggle}>{signup ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
-      </form>
+      </form>}
     </main>
   );
 }

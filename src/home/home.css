@@ -27,3 +27,5 @@ body.home-corridor .platform-nav{position:relative;z-index:5}
 .home-v2 .explore-section{background:linear-gradient(110deg,rgba(21,35,43,.86),rgba(12,18,23,.84))}
 .home-v2 .home-intro h1,.home-v2 .home-intro p,.home-v2 .home-kicker{text-shadow:0 2px 18px rgba(0,0,0,.6)}
 
+a.home-outline{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:var(--ink,#eef3f5);white-space:nowrap}
+a.home-outline:hover{border-color:var(--meter,#f2c94c);color:var(--meter,#f2c94c)}

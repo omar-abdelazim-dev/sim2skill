@@ -23,6 +23,7 @@ export default function App(){
  {page==='home'&&<Home active playIntro={false} onIntroDone={()=>{}} navNameRef={navName} onOpenLab={id=>go('details/'+id)} transit={null} ringRef={ringRef}/>}
  {page==='browse'&&<Browse/>}
  {page==='signin'&&<Auth onAuth={authenticated}/>}
+ {page==='explore'&&<Auth key="explore" explore onAuth={authenticated}/>}
  {page==='studio'&&(user?.role==='tutor'?<Studio user={user}/>:<RoleGate/>)}
  {(page==='create'||page==='edit')&&(user?.role==='tutor'?<Editor key={id||'new'} id={page==='edit'?id:null} user={user} onSaved={()=>go('studio')}/>:<RoleGate/>)}
  {page==='details'&&<Details key={id} id={id} user={user} onPractise={practise}/>}
@@ -30,7 +31,7 @@ export default function App(){
  {page==='practice'&&(user?<PracticeHistory/>:<Auth onAuth={authenticated}/>)}
  {page==='dashboard'&&(user?.role==='tutor'?<Studio user={user}/>:<RoleGate/>)}
  {page==='lab'&&(user&&activeLab?<><LabView key={activeLab.id} onBack={()=>go('details/'+activeLab.id)} onDashboard={()=>go(user.role==='tutor'?'studio':'practice')}/><div className="community-lab-context"><span>{activeLab.title} <small>by {activeLab.author.name}</small></span><button onClick={()=>setShowInstructions(true)}>Lab instructions</button></div>{showInstructions&&<dialog ref={instructionsRef} className="platform-modal" onClose={()=>setShowInstructions(false)} onCancel={()=>setShowInstructions(false)}><section className="platform-panel" role="dialog" aria-modal="true" aria-label="Lab instructions"><button className="home-outline" autoFocus onClick={()=>setShowInstructions(false)}>Back to experiment</button><h2>{activeLab.title}</h2><h3>Learning outcomes</h3><p className="preserve-lines">{activeLab.outcomes}</p><h3>Instructions</h3><p className="preserve-lines">{activeLab.instructions}</p></section></dialog>}</>:<main className="platform-page platform-empty"><h1>Choose an experiment first.</h1><p>Open a lab from the public browser to begin practising.</p><a className="home-primary" href="#browse">Browse labs</a></main>)}
- {!['home','browse','signin','studio','create','edit','details','profile','practice','lab','dashboard'].includes(page)&&<main className="platform-page"><h1>Page not found</h1><a href="#browse">Browse labs</a></main>}
+ {!['home','browse','signin','explore','studio','create','edit','details','profile','practice','lab','dashboard'].includes(page)&&<main className="platform-page"><h1>Page not found</h1><a href="#browse">Browse labs</a></main>}
  </>}
  </>;
 }
