@@ -46,7 +46,7 @@ export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef 
         <aside className="instructor-section" id="nour-panel"><div className="home-section-head"><div><span className="section-kicker">A LITTLE GUIDANCE</span><h2>Never stuck for long.</h2></div></div><Chat ref={chatRef} onOpenLab={onOpenLab} disabled={!!transit}/></aside>
       </section>
 
-      <section className="explore-section" aria-label="Lab roadmap"><div className="explore-copy"><span className="explore-symbol" aria-hidden="true">⊞</span><div><h2>A whole world of “what if?”</h2><p>More electronics, physics, and chemistry experiments are on the way.</p></div></div><a className="home-outline" href="#explore">Walk the lab gallery →</a></section>
+      <section className="explore-section" aria-label="Lab roadmap"><div className="explore-copy"><span className="explore-symbol" aria-hidden="true">⊞</span><div><h2>A whole world of “what if?”</h2><p>More physics experiments are on the way: circuits, mechanics and optics.</p></div></div><a className="home-outline" href="#explore">Walk the lab gallery →</a></section>
       <footer className="home-footer"><span>Sim2Skill <span className="footer-caption">· Learning through doing.</span></span><span>Built for curious minds. <span className="footer-spark">✳</span></span></footer>
     </main>
   </>);

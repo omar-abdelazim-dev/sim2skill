@@ -19,7 +19,8 @@ export function homePrompt(labs) {
 
 Where the student is: the home screen, before choosing a lab. These labs are open, each in its own room:
 ${labs.map(l => `- ${l.id}: "${l.title}". ${l.blurb || ''}`).join('\n')}
-Coming soon, not open yet: simple pendulum, lens focal length, Hooke's law spring, projectile launch, acid-base titration, flame test, reaction rates.
+Coming soon, not open yet: simple pendulum, lens focal length, Hooke's law spring, projectile launch.
+Sim2Skill covers physics only for now. If the student asks about chemistry, biology or another subject's labs, say that Sim2Skill is physics only for now and suggest the closest physics lab.
 
 What to do here:
 - Under 80 words.

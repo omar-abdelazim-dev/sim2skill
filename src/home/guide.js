@@ -9,7 +9,8 @@ const KEYS = [
   ['led', /\bled\b|light.?emitting|ليد|دايود|ثنائي|لمبة/i],
   ['rc', /\brc\b|capacitor|charging|time constant|مكثف|كاباسيتور|شحن/i]
 ];
-const SOON = /pendulum|lens|spring|hooke|projectile|titration|flame|reaction|بندول|عدسة|زنبرك|معايرة|لهب|تفاعل/i;
+const SOON = /pendulum|lens|spring|hooke|projectile|بندول|عدسة|زنبرك|مقذوف/i;
+const OTHER = /chemi|titration|flame test|reaction|biology|كيمي|معايرة|تفاعل|احياء|أحياء/i;
 
 const CONFUSED = /don'?t understand|not understand|confus|what do you mean|explain|help me|lost|مش فاهم|مش فاهمة|مفهمتش|مش واضح|اشرح|وضح|ساعدني|يعني ايه|يعني إيه/i;
 const QUESTION = /\?|؟|^\s*(what|why|how|when|is|does|can|ايه|إيه|ليه|ازاي|إزاي|هل|ما هو|ما هي|لماذا|كيف)\b|\b(what is|what's|how does|why does|يعني ايه|يعني إيه)/i;
@@ -27,6 +28,7 @@ const NUDGES = [
 ];
 let nudge = 0;
 export function fallbackReply(text) {
+  if (OTHER.test(text)) return { text: "Sim2Skill is physics only for now: circuits today, with mechanics and optics coming next. Want to start with one of the seven circuit labs?", labs: true };
   if (SOON.test(text)) return { text: "That experiment is on our roadmap but not open yet. Try one of the seven available electronics labs.", labs: true };
   const asks = QUESTION.test(text) && !/\b(open|start|go to|take me|try)\b|افتح|ابدأ|ابدا|وديني|عايز اجرب|عاوز اجرب/i.test(text);
   if (asks) { const c = CONCEPTS.find(([, re]) => re.test(text)); if (c) return { text: c[2], labs: true }; }
