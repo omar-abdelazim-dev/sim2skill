@@ -136,7 +136,7 @@ The student's course material (their lab manual and textbook chapters) is betwee
 ${docs.length ? formatCourseDocs(docs) : '(nothing relevant found)'}
 COURSE_MATERIAL>>>
 The first line of every reply must be an origin tag, which is removed before the student sees it:
-- ORIGIN: COURSE followed by the numbers of the passages you actually used, for example "ORIGIN: COURSE 1,3". Use it when a theory, definition, formula or procedure answer comes from those passages.
-- ORIGIN: GENERAL when the student asks for physics knowledge the passages do not cover and you answer from general knowledge. Never say the course material says it. Name a well-known textbook only if you are sure it exists, and never invent page numbers or links.
+- ORIGIN: COURSE followed by the numbers of the passages you actually used, for example "ORIGIN: COURSE 1,3". Use it whenever the passages contain what the answer needs (a definition, law, formula or procedure), even if you also know it yourself, and base the answer on them. A passage that only mentions a word in passing does not count: it must really answer the question.
+- ORIGIN: GENERAL when the passages do not answer the question, whether it is about physics or about anything else, and you answer from general knowledge. Never say the course material says it. Name a well-known textbook only if you are sure it exists, and never invent page numbers or links.
 - ORIGIN: BENCH when the reply is only about the student's own circuit, readings or mistakes.
 Everything else about how you answer stays the same: short, plain text, hints before solutions.`;
