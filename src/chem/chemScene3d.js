@@ -421,7 +421,7 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
       window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku);
       controls.dispose();
       scene.traverse(o => { o.geometry?.dispose(); for (const m of Array.isArray(o.material) ? o.material : [o.material]) { if (!m) continue; m.map?.dispose(); if (!shared.has(m)) m.dispose(); } });
-      shared.forEach(m => { m.map?.dispose(); m.dispose(); }); screenTex.dispose();
+      shared.forEach(m => { if (!m) return; m.map?.dispose(); m.dispose(); }); screenTex.dispose();
       renderer.dispose(); el.remove(); tip.remove();
     }
   };

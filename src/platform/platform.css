@@ -60,3 +60,6 @@ a.account-name:hover{text-decoration:underline}
 .visibility-choice label,.chem-page .chem-row label,.chem-builder .chem-row label{display:flex!important;flex-direction:row;justify-content:flex-start;text-align:left;align-items:flex-start;gap:10px}
 .visibility-choice input[type=radio],.visibility-choice input[type=checkbox],.chem-row input[type=checkbox]{width:auto;flex:none;margin-top:4px}
 .visibility-choice small{display:inline;margin-left:4px}
+.theme-toggle{display:inline-grid;place-items:center;width:40px;height:40px;border-radius:50%;border:1px solid var(--line-c);background:var(--surface);color:var(--ink-soft);cursor:pointer;flex:none}
+.theme-toggle:hover{border-color:var(--meter);color:var(--meter-text,var(--meter))}
+.theme-toggle svg{width:20px;height:20px}

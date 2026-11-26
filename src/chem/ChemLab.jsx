@@ -20,7 +20,7 @@ function ChemStage({ kind, config, state, onAction, mode, hud, hint, onFailure }
   useEffect(() => {
     try { room.current = createChemLab3D(host.current, { kind, config, indicators: INDICATORS, onAction: a => act.current(a) }); }
     catch (e) { console.error('3D chemistry room failed:', e); onFailure(); return; }
-    return () => { room.current?.destroy(); room.current = null; };
+    return () => { try { room.current?.destroy(); } catch (e) { console.error('3D room cleanup failed:', e); } room.current = null; };
   }, []);
   useEffect(() => { room.current?.setMode(mode); }, [mode]);
   useEffect(() => { room.current?.update(state); });
@@ -60,17 +60,24 @@ function Chart({ series, xLabel, yLabel, height = 220, fits = [] }) {
 }
 
 // ---------- Nour, grounded in the bench ----------
-function ChemNour({ lab, context, offline }) {
-  const [log, setLog] = useState([{ role: 'nour', text: `Hi, I'm Nour. Ask me anything about this ${lab.engine === 'titration' ? 'titration' : 'kinetics experiment'}.` }]);
-  const [draft, setDraft] = useState(''), [busy, setBusy] = useState(false), [, tick] = useState(0);
+// Nour's panel, laid out like the physics lab's Nour: avatar header, chat, quick questions, minimise.
+const NourFace = () => <svg viewBox="0 0 40 40" className="chem-nour-face" aria-hidden="true"><rect x="6" y="9" width="28" height="22" rx="7" className="face" /><circle cx="15" cy="20" r="3.2" className="eye" /><circle cx="25" cy="20" r="3.2" className="eye" /><path d="M20 9V4" className="stem" strokeWidth="2" /><circle cx="20" cy="3.5" r="2" className="eye" /></svg>;
+const QUICK = {
+  titration: ['What should I do next?', 'Which indicator should I choose?', 'How do I calculate the concentration?'],
+  kinetics: ['What should I do next?', 'How do I find the order?', 'How do I get Ea from my data?']
+};
+function ChemNour({ lab, context, offline, nudge }) {
+  const [log, setLog] = useState([{ role: 'nour', text: `Hi, I'm Nour, your lab instructor. Ask me anything about this ${lab.engine === 'titration' ? 'titration' : 'kinetics experiment'}, or tap a question below.` }]);
+  const [draft, setDraft] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(true), [, tick] = useState(0);
   const box = useRef(null);
   useEffect(() => onNourMode(() => tick(x => x + 1)), []);
-  useEffect(() => { box.current?.scrollTo(0, box.current.scrollHeight); }, [log]);
-  async function send(e) {
-    e.preventDefault();
-    const text = draft.trim(); if (!text || busy) return;
+  useEffect(() => { box.current?.scrollTo(0, box.current.scrollHeight); }, [log, open]);
+  // When the bench reports a result or a mistake, Nour says it in the chat, like a TA looking over your shoulder.
+  useEffect(() => { if (nudge) { setLog(l => (l[l.length - 1]?.text === nudge ? l : [...l, { role: 'nour', text: nudge }])); setOpen(true); } }, [nudge]);
+  async function ask(text) {
+    text = text.trim(); if (!text || busy) return;
     const history = [...log, { role: 'user', text }];
-    setLog([...history, { role: 'nour', text: '' }]); setDraft(''); setBusy(true);
+    setLog([...history, { role: 'nour', text: '' }]); setDraft(''); setBusy(true); setOpen(true);
     const setLast = t => setLog(l => { const c = l.slice(); c[c.length - 1] = { role: 'nour', text: t }; return c; });
     let r = null;
     try { r = await askNour({ kind: 'lab', history, ctx: context(), labId: lab.id, state: context().state, onText: setLast }); } catch { r = null; }
@@ -78,12 +85,17 @@ function ChemNour({ lab, context, offline }) {
     setBusy(false);
   }
   const mode = { claude: 'Answers with Claude', server: 'Gemini answers from your bench' }[nourMode()] || 'Offline answers from your bench';
-  return <section className="chem-panel chem-nour" aria-label="Chat with Nour">
-    <h2>Nour</h2><p className="chem-mode">{mode}</p>
-    <div className="chem-nour-log" ref={box} aria-live="polite">{log.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text || '…'}</p>)}</div>
-    <form onSubmit={send} className="chem-nour-form"><label className="sr-only" htmlFor="chem-nour-text">Ask Nour</label>
-      <input id="chem-nour-text" value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} placeholder="Ask Nour about your experiment…" />
-      <button className="home-primary" disabled={busy || !draft.trim()}>Send</button></form>
+  return <section className={'chem-panel chem-nour' + (open ? '' : ' folded')} aria-label="Chat with Nour">
+    <header className="chem-nour-head"><NourFace /><div><b>Nour</b><span>LAB INSTRUCTOR</span></div>
+      <button type="button" className="chem-nour-min" aria-expanded={open} aria-label={open ? 'Minimise Nour' : 'Open Nour'} onClick={() => setOpen(!open)}>{open ? '–' : '+'}</button></header>
+    {open ? <>
+      <div className="chem-nour-log" ref={box} aria-live="polite">{log.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text || '…'}</p>)}</div>
+      <form onSubmit={e => { e.preventDefault(); ask(draft); }} className="chem-nour-form"><label className="sr-only" htmlFor="chem-nour-text">Ask Nour</label>
+        <input id="chem-nour-text" value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} placeholder="Ask Nour about your experiment…" />
+        <button className="home-primary" disabled={busy || !draft.trim()}>Send</button></form>
+      <p className="chem-mode">{mode}</p>
+      <div className="chem-nour-quick">{(QUICK[lab.engine] || []).map(q => <button key={q} type="button" disabled={busy} onClick={() => ask(q)}>{q}</button>)}</div>
+    </> : <p className="chem-nour-peek">{log[log.length - 1]?.text}</p>}
   </section>;
 }
 
@@ -186,7 +198,7 @@ function Titration({ lab, onSaved, mode, onNo3D }) {
       <Chart series={[{ name: 'pH', color: '#8fd3ff', line: true, points: points.map(p => [p.v, p.pH]) }]} xLabel={`${t.name} added (mL)`} yLabel="pH" />
       {indicator && <p className="platform-help">{INDICATORS[indicator].name} changes colour between pH {INDICATORS[indicator].low} and {INDICATORS[indicator].high}.</p>}
     </section>
-    <ChemNour lab={lab} context={context} offline={offline} />
+    <ChemNour lab={lab} context={context} offline={offline} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : notice} />
   </div></>;
 }
 
@@ -248,7 +260,7 @@ function Kinetics({ lab, onSaved, mode, onNo3D }) {
       <h2>{natural ? 'ln k' : 'log₁₀ k'} against 1/T</h2>
       <Chart series={[{ name: 'k', color: '#f2c94c', points: arr }]} fits={arrFit ? [{ ...arrFit, color: '#f2c94c' }] : []} xLabel={`1/T (${kelvin ? 'K⁻¹' : '°C⁻¹'})`} yLabel={natural ? 'ln k' : 'log k'} height={200} />
     </section>
-    <ChemNour lab={lab} context={context} offline={offline} />
+    <ChemNour lab={lab} context={context} offline={offline} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : ''} />
   </div></>;
 }
 
@@ -256,16 +268,28 @@ export default function ChemLab({ lab, onBack, onSaved }) {
   const Bench = lab.engine === 'titration' ? Titration : Kinetics;
   const [showInfo, setShowInfo] = useState(false), [showQuiz, setShowQuiz] = useState(false), [mode, setMode] = useState(WEBGL ? 'orbit' : '2d'), [no3D, setNo3D] = useState(!WEBGL);
   const views = [['orbit', '3D room'], ['walk', 'Walk'], ['2d', 'Diagram']].filter(([m]) => m === '2d' || !no3D);
-  return <main className="platform-page chem-page">
-    <div className="chem-top"><button type="button" className="platform-text" onClick={onBack}>← Back to lab details</button>
+  const immersive = mode !== '2d';
+  const [hidden, setHidden] = useState(false);
+  // Full-screen room like the physics labs: hide the site navigation and stop page scrolling.
+  useEffect(() => {
+    document.body.classList.toggle('chem-immersive-on', immersive);
+    return () => document.body.classList.remove('chem-immersive-on');
+  }, [immersive]);
+  useEffect(() => {
+    const key = e => { if (e.key === 'Escape' && showInfo) setShowInfo(false); };
+    addEventListener('keydown', key); return () => removeEventListener('keydown', key);
+  }, [showInfo]);
+  return <main className={'platform-page chem-page' + (immersive ? ' chem-immersive' : '') + (immersive && hidden ? ' panels-hidden' : '')}>
+    <div className="chem-top"><button type="button" className={immersive ? 'chem-back' : 'platform-text'} onClick={onBack}>{immersive ? '← Labs' : '← Back to lab details'}</button>
       <div><div className="section-kicker">CHEMISTRY · {lab.engine === 'titration' ? 'TITRATION' : 'KINETICS'}</div><h1>{lab.title}</h1><p>{lab.goal}</p></div>
       <div className="chem-actions">
         <div className="chem-views" role="radiogroup" aria-label="View">{views.map(([m, label]) => <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}>{label}</button>)}</div>
         <button type="button" className="home-outline" aria-expanded={showInfo} onClick={() => setShowInfo(!showInfo)}>Lab instructions</button>
         {lab.quiz?.length > 0 && <button type="button" className="home-primary" onClick={() => setShowQuiz(true)}>Take the quiz</button>}
+        {immersive && <button type="button" className="home-outline" aria-pressed={hidden} onClick={() => setHidden(!hidden)}>{hidden ? 'Show panels' : 'Hide panels'}</button>}
       </div></div>
     {no3D && WEBGL && <p className="platform-help">The 3D room could not start on this device, so the lab is shown as a diagram.</p>}
-    {showInfo && <section className="chem-panel"><h2>Learning outcomes</h2><p className="preserve-lines">{lab.outcomes}</p><h2>Instructions</h2><p className="preserve-lines">{lab.instructions}</p></section>}
+    {showInfo && <section className="chem-panel chem-info" role="dialog" aria-label="Lab instructions">{immersive && <button type="button" className="chem-info-close" aria-label="Close instructions" onClick={() => setShowInfo(false)}>×</button>}<h2>Learning outcomes</h2><p className="preserve-lines">{lab.outcomes}</p><h2>Instructions</h2><p className="preserve-lines">{lab.instructions}</p></section>}
     <Bench lab={lab} onSaved={onSaved} mode={mode} onNo3D={() => { setNo3D(true); setMode('2d'); }} />
     {showQuiz && <QuizDialog lab={lab} onClose={() => setShowQuiz(false)} />}
   </main>;

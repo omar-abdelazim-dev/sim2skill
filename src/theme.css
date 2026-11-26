@@ -1,12 +1,10 @@
-/* Bright theme layer: loaded last (src/main.jsx). Tokens live in styles.css :root; this file restyles the
-   components whose colours were written as literals for the old dark theme, and styles the newer UI
-   (subject filter, avatars, thumbnails, quizzes, the 3D chemistry stage). Instrument displays stay dark. */
-
+/* Bright theme layer (light mode). Scoped so dark mode gets the original colours; see theme-dark.css. */
+@keyframes nour-ping{from{transform:scale(.6);opacity:1}to{transform:scale(1.8);opacity:0}}
+@keyframes nour-in{from{opacity:0;transform:translateY(12px) scale(.96)}}
+html:not([data-theme="dark"]){
 body::before{mix-blend-mode:multiply;opacity:.018}
 ::selection{background:#FFE9A6;color:var(--ink)}
 :focus-visible{outline-color:var(--accent)}
-
-/* ---------- navigation ---------- */
 .nav{border-bottom:1px solid var(--line-c)}
 .platform-nav{background:rgba(251,250,246,.86);backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);position:sticky;top:0}
 .wmRest{color:var(--accent)}
@@ -28,8 +26,6 @@ body::before{mix-blend-mode:multiply;opacity:.018}
 .bell-panel li.unread a{background:#FFF9E6;color:var(--ink)}
 .bell-panel li a:hover{background:#FBF5E3}
 .bell-panel small,.bell-empty{color:var(--ink-muted)}
-
-/* ---------- buttons and links ---------- */
 .home-primary{background:var(--btn);color:var(--meter-ink);box-shadow:0 1px 0 rgba(0,0,0,.04),0 6px 16px -8px rgba(201,138,0,.55)}
 .home-primary:hover{background:var(--btn-hover)}
 .home-primary:disabled{background:#EFE7CF;color:#8E8672;box-shadow:none}
@@ -41,8 +37,6 @@ a.home-outline:hover{border-color:var(--meter);color:var(--meter-text)}
 .platform-text{color:var(--accent)}
 .platform-text.danger{color:var(--crit)}
 .home-v2 button:focus-visible,.home-v2 a:focus-visible{outline:2px solid var(--accent)}
-
-/* ---------- home ---------- */
 .home-v2{--home-border:#E6E1D6}
 .home-kicker,.section-kicker{color:var(--meter-text)}
 .kicker-mark{color:var(--meter)}
@@ -92,8 +86,6 @@ a.home-outline:hover{border-color:var(--meter);color:var(--meter-text)}
 .chat{background:var(--surface);box-shadow:var(--shadow-md),inset 0 0 0 1px var(--line-c)}
 .chat-input input{background:var(--surface)}
 .avatar .head{fill:#1B252B}
-
-/* ---------- platform pages ---------- */
 .platform-page p{color:var(--ink-soft)}
 .platform-count,.platform-help{color:var(--ink-muted)}
 .platform-panel{background:var(--surface);border:1px solid #E8E3D8;box-shadow:var(--shadow-sm)}
@@ -175,8 +167,6 @@ dialog.platform-modal{color:var(--ink)}
 .plan-price small,.plan-table thead th{color:var(--ink-muted)}
 .plan-option,.plan-table th,.plan-table td{border-bottom:1px solid #F0EDE6}
 .plan-tier{color:var(--ink-soft)}
-
-/* ---------- avatars and thumbnails ---------- */
 .user-avatar{flex:none;display:inline-grid;place-items:center;border-radius:50%;object-fit:cover;background:linear-gradient(135deg,#FFE08A,#F2B705);color:var(--meter-ink);font:600 14px/1 var(--sans);letter-spacing:.02em;border:1px solid rgba(27,37,43,.08)}
 .ua-xs{width:22px;height:22px;font-size:9px}
 .ua-sm{width:30px;height:30px;font-size:11px}
@@ -191,8 +181,6 @@ dialog.platform-modal{color:var(--ink)}
 .profile-photo{display:flex;gap:20px;align-items:center;padding-bottom:12px;border-bottom:1px solid #F0EDE6}
 .profile-photo p{margin:2px 0 0}
 .detail-start .image-picker{margin:0 0 6px}
-
-/* ---------- browse: subject filter ---------- */
 .browser-filters{border:1px solid #E8E3D8;background:var(--surface);box-shadow:var(--shadow-sm);display:grid;grid-template-columns:auto minmax(220px,1fr) 190px;gap:16px;align-items:end}
 .subject-filter{display:flex;gap:6px;padding:4px;background:#F5F2EA;border-radius:12px;align-self:end}
 .subject-chip{display:inline-flex;align-items:center;gap:8px;border:0;background:transparent;color:var(--ink-soft);padding:9px 16px;border-radius:9px;font:500 15px/1 var(--sans);cursor:pointer;transition:background .2s,color .2s}
@@ -207,8 +195,6 @@ dialog.platform-modal{color:var(--ink)}
 .subject-tag::before{content:"";width:8px;height:8px;border-radius:50%;background:#2C8CB0}
 .subject-tag.chemistry::before{background:#8A5CD6}
 @media(max-width:900px){.browser-filters{grid-template-columns:1fr}.subject-filter{overflow-x:auto}}
-
-/* ---------- quizzes ---------- */
 .quiz-editor h2{margin-top:0}
 .quiz-edit-item{border:1px solid #E8E3D8;border-radius:12px;padding:16px 18px;margin:0 0 16px;display:grid;gap:12px;background:#FDFCF9}
 .quiz-edit-item legend{font:600 13px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--meter-text);padding:0 6px}
@@ -240,8 +226,6 @@ dialog.platform-modal{color:var(--ink)}
 .quiz-modal section{max-width:760px;max-height:86vh;overflow:auto}
 .quiz-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:start;margin-bottom:12px}
 .quiz-modal-head h2{margin:4px 0 0}
-
-/* ---------- chemistry: panels and the 3D stage ---------- */
 .chem-panel{background:var(--surface);border:1px solid #E8E3D8;box-shadow:var(--shadow-sm)}
 .chem-readout{color:var(--ink-soft)}
 .chem-readout b{color:var(--meter-text)}
@@ -273,8 +257,6 @@ dialog.platform-modal{color:var(--ink)}
 .chem-tip{position:absolute;z-index:3;pointer-events:none;background:var(--ink);color:#fff;font:500 13px/1.3 var(--sans);padding:6px 10px;border-radius:8px;box-shadow:var(--shadow-md);max-width:240px}
 .chem-layout.with-stage{grid-template-columns:minmax(320px,1fr) minmax(360px,1.2fr);grid-template-areas:"steps curve" "steps nour"}
 @media (max-width:1100px){.chem-layout.with-stage{grid-template-columns:1fr;grid-template-areas:"steps" "curve" "nour"}.chem-top{grid-template-columns:1fr}.chem-actions{justify-content:flex-start}.chem-stage-hint{white-space:normal;text-align:center}}
-
-/* ---------- circuits lab: light frosted HUD over the 3D room ---------- */
 .hud-card,.hud-back,.hud .pill,.seg.dark,.hud-icon,.restore .hbtn,.vp-hint,.aim,.caption,.restore-k{background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 12px 32px -18px rgba(27,37,43,.35),inset 0 0 0 1px rgba(27,37,43,.08);color:var(--ink);border-color:rgba(27,37,43,.1)}
 .hud-back:hover,.hud-icon:hover,.hud-icon[aria-pressed="true"]{box-shadow:inset 0 0 0 1.5px var(--meter);color:var(--meter-text)}
 .hud .pill.live,.restore .hbtn::before{color:var(--meter-text)}
@@ -299,13 +281,9 @@ kbd{background:#F0ECE2;box-shadow:inset 0 -1px 0 rgba(27,37,43,.2)}
 .immersive .ro .k,.immersive .ro .note,.hud-card .ro .k,.hud-card .ro .note{color:var(--ink-muted)}
 .immersive .inst .ro .v.big{color:var(--meter)}
 .immersive .inst .ro .k,.immersive .inst .ro .note{color:var(--inst-dim)}
-
-/* ---------- fixes found in review ---------- */
 .home-v2{--home-muted:#5A6A73;--home-soft:#4E5E67}
 .account-role{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:4px 10px;line-height:1.2}
 .lab-badge{top:auto;bottom:10px}
-
-/* ---------- typography: one clean sans (Geist) for everything except data ---------- */
 body{font-family:var(--sans);letter-spacing:-.005em}
 h1,h2,h3,.platform-page h1,.intro-copy h1,.learning-note>p,.quiz-score strong{font-family:var(--sans);font-weight:650;letter-spacing:-.03em}
 .platform-page h1{font-size:clamp(32px,3.6vw,46px);line-height:1.08}
@@ -315,8 +293,6 @@ h1,h2,h3,.platform-page h1,.intro-copy h1,.learning-note>p,.quiz-score strong{fo
 .home-section-head h2{font:650 24px/1.25 var(--sans);letter-spacing:-.03em}
 .wordmark{font:700 calc(30 * var(--u))/1 var(--sans);letter-spacing:-.04em}
 @media(max-width:700px){.wordmark{font-size:22px}}
-
-/* ---------- flair ---------- */
 body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22),transparent 70%),radial-gradient(900px 420px at -10% 10%,rgba(255,236,179,.25),transparent 70%),var(--paper);background-attachment:fixed}
 .section-kicker,.home-kicker{display:flex;align-items:center;gap:10px}
 .section-kicker::before{content:"";width:18px;height:2px;border-radius:2px;background:var(--meter)}
@@ -338,8 +314,6 @@ body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22)
 .home-footer::before{content:"";position:absolute;left:0;top:-1px;width:120px;height:2px;background:linear-gradient(90deg,var(--meter),transparent)}
 .public-lab-card{border-radius:16px}
 .home-primary{border-radius:12px}
-
-/* ---------- Nour pop-up ---------- */
 .nour-widget{position:fixed;right:24px;bottom:24px;z-index:90;display:flex;flex-direction:column;align-items:flex-end;gap:14px;pointer-events:none}
 .nour-widget>*{pointer-events:auto}
 .nour-launcher{position:relative;display:inline-flex;align-items:center;gap:10px;border:0;cursor:pointer;background:var(--ink);color:#fff;font:600 15px/1 var(--sans);padding:8px 18px 8px 8px;border-radius:999px;box-shadow:0 14px 34px -10px rgba(27,37,43,.55),0 0 0 4px rgba(242,183,5,.25);transition:transform .25s var(--ease),box-shadow .25s}
@@ -349,10 +323,8 @@ body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22)
 .nour-launcher-x{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:var(--btn);color:var(--meter-ink);font-size:24px;line-height:1}
 .nour-ping{position:absolute;top:4px;left:36px;width:10px;height:10px;border-radius:50%;background:#2FB46E;box-shadow:0 0 0 2px var(--ink)}
 .nour-ping::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid #2FB46E;animation:nour-ping 1.8s ease-out infinite}
-@keyframes nour-ping{from{transform:scale(.6);opacity:1}to{transform:scale(1.8);opacity:0}}
 .nour-pop{position:relative;width:min(400px,calc(100vw - 32px));height:min(600px,calc(100svh - 120px));display:flex;flex-direction:column;border-radius:20px;overflow:hidden;background:var(--surface);border:1px solid #E6E0D3;box-shadow:0 30px 80px -20px rgba(27,37,43,.4);transform-origin:bottom right;animation:nour-in .28s var(--ease)}
 .nour-pop[hidden]{display:none}
-@keyframes nour-in{from{opacity:0;transform:translateY(12px) scale(.96)}}
 .nour-pop .chat{flex:1;min-height:0;height:auto!important;max-height:none;border:0!important;border-radius:0;box-shadow:none!important;display:flex;flex-direction:column;background:var(--surface)}
 .nour-pop .chat-head{padding-right:56px;background:linear-gradient(180deg,#FFF6DA,#fff)}
 .nour-pop .chat-log,.nour-pop .log{flex:1;min-height:0;overflow:auto}
@@ -375,8 +347,6 @@ body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22)
 .account-name{max-width:170px}
 .quiz-player .quiz-choice{margin:0;gap:10px;grid-template-columns:none}
 .quiz-questions fieldset{gap:2px}
-
-/* ---------- sign-in ---------- */
 .auth-page{max-width:1240px;margin:0 auto;padding:56px 32px 80px;display:grid;grid-template-columns:1.1fr minmax(360px,440px);gap:64px;align-items:start}
 .auth-intro h1{font-size:clamp(40px,4.4vw,60px);line-height:1.02;letter-spacing:-.045em;font-weight:700;margin:18px 0 30px}
 .auth-intro h1 .marker,.marker{background:linear-gradient(transparent 58%,#FFDF6E 58%,#FFDF6E 88%,transparent 88%);padding:0 .06em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
@@ -401,8 +371,6 @@ body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22)
 .auth-next{background:var(--gold-soft);border:1px solid var(--gold-line);border-radius:10px;padding:10px 12px}
 @media (max-width:900px){.auth-page{grid-template-columns:1fr;gap:36px;padding:32px 20px 60px}.auth-panel{position:static}.auth-cards{display:none}}
 .auth-card .face-art{position:static;inset:auto;width:100%;height:auto;aspect-ratio:284/160}
-
-/* ---------- resistance value entry (adjustable and custom resistors) ---------- */
 .resistance-control{display:grid;gap:6px;margin:10px 0;padding:10px 12px;border-radius:12px;background:#FFFBEF;border:1px solid var(--gold-line);color:var(--ink)}
 .resistance-control label{font:600 13px/1.3 var(--sans);color:var(--ink);margin:0}
 .resistance-control .rc-row{display:flex;gap:6px}
@@ -412,3 +380,4 @@ body{background:radial-gradient(1200px 520px at 85% -120px,rgba(255,214,102,.22)
 .resistance-control input[type=range]{accent-color:var(--meter);width:100%}
 .resistance-control small{font-size:12px;line-height:1.4;color:var(--ink-soft)}
 .rounding-choice{margin-top:14px}
+}
