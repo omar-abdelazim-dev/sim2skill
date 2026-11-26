@@ -1,5 +1,6 @@
 /* Sign-in / sign-up: the corridor behind the form, which sits on the right. One fixed screen: no page scrollbar, nothing sticky. Small screens scroll normally. */
-html body.auth-static .auth-page{grid-template-columns:1.1fr minmax(360px,440px);gap:64px}
+html body.auth-static .auth-page{grid-template-columns:1.1fr minmax(360px,440px);gap:64px;pointer-events:none}
+html body.auth-static .auth-panel,html body.auth-static .auth-ui>*,html body.auth-static .lab-focus-card.shown{pointer-events:auto}
 html body.auth-static .auth-panel{grid-column:2}
 @media (min-width:901px) and (min-height:560px){
   html:has(body.auth-static){overflow:hidden}
@@ -15,3 +16,24 @@ html body.auth-static .auth-panel{grid-column:2}
   html body.auth-static .auth-panel .platform-text{margin-top:2px;padding:4px 0}
 }
 @media (max-width:900px){html body.auth-static .auth-page{grid-template-columns:1fr}html body.auth-static .auth-panel{grid-column:1}}
+
+/* corridor controls and the lab card */
+.auth-ui{position:fixed;left:32px;bottom:28px;z-index:2;display:flex;align-items:center;gap:14px;pointer-events:none}
+.auth-arrows{display:flex;gap:10px}
+.auth-arrows button{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--line-c,rgba(128,128,128,.5));background:color-mix(in srgb,var(--surface) 78%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:background .25s,color .25s,border-color .25s}
+.auth-arrows button:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.auth-arrows svg{width:20px;height:20px}
+.auth-hint{margin:0;font:400 11px/1.7 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);text-shadow:0 1px 10px var(--paper)}
+.lab-focus-card{position:fixed;z-index:3;width:min(340px,calc(100vw - 32px));background:color-mix(in srgb,var(--surface) 88%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border:1px solid var(--line-c,rgba(128,128,128,.4));border-radius:14px;padding:16px 20px 18px;box-shadow:var(--shadow-md);opacity:0;visibility:hidden;transform:translateY(6px);transition:opacity .25s,transform .25s,visibility 0s .25s}
+.lab-focus-card.shown{opacity:1;visibility:visible;transform:none;transition:opacity .25s,transform .25s,visibility 0s}
+.lab-focus-world{font:500 11px/1.4 var(--mono);letter-spacing:.14em}
+.lab-focus-card h2{margin:4px 0 6px;font:600 22px/1.2 var(--sans);letter-spacing:-.02em;color:var(--ink)}
+.lab-focus-card p{margin:0 0 12px;font:400 14px/1.55 var(--sans);color:var(--ink-soft)}
+.lab-focus-card .lab-focus-soon{margin:0;font-family:var(--mono);font-size:12px;letter-spacing:.06em}
+.lab-focus-go{border:0;background:var(--meter);color:var(--meter-ink,#1a1400);font:600 14px/1 var(--sans);padding:12px 16px;border-radius:9px;cursor:pointer;min-height:44px}
+.lab-focus-go:hover{background:var(--meter-strong,var(--meter))}
+.auth-arrows button:focus-visible,.lab-focus-go:focus-visible{outline:2px solid var(--meter);outline-offset:3px}
+@media (max-width:900px){.auth-ui{left:16px;bottom:16px}.auth-hint{display:none}.lab-focus-card{left:12px!important;right:12px;top:auto!important;bottom:76px;width:auto}}
+@media (prefers-reduced-motion:reduce){.lab-focus-card{transition:none}}
+html:not([data-theme="dark"]) .lab-focus-world{color:var(--ink-soft)!important}
+@media (min-width:901px) and (min-height:560px){html body.auth-static .auth-panel{max-height:calc(100dvh - 104px);overflow:auto;overscroll-behavior:contain}}

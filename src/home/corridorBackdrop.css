@@ -12,3 +12,12 @@ body.home-corridor .home-footer{background:none}
 @media (prefers-reduced-motion:reduce){.home-backdrop-stage{transition:none}}
 @media (max-width:820px){.home-backdrop-veil{opacity:1}}
 html body.home-corridor .intro-copy>p,html body.home-corridor .home-kicker{text-shadow:0 1px 14px var(--paper),0 0 3px var(--paper)}
+
+/* sign-in: the corridor takes pointer input (drag, wheel, click a frame) */
+.home-backdrop.interactive{pointer-events:auto}
+.home-backdrop.interactive .home-backdrop-stage{cursor:grab}
+.home-backdrop.interactive .home-backdrop-stage.over-frame{cursor:pointer}
+.home-backdrop.interactive .home-backdrop-stage.dragging{cursor:grabbing}
+.home-backdrop.interactive canvas{touch-action:none}
+@media (max-width:820px),(orientation:landscape) and (max-height:500px){.home-backdrop.interactive canvas{touch-action:pan-y}}
+.home-backdrop.interactive .home-backdrop-veil{pointer-events:none}
