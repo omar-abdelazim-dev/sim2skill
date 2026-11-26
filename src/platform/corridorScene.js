@@ -383,6 +383,8 @@ export function createCorridor(container, { reduced = false, theme = 'dark', onR
 
   return {
     start, walk, stepBack,
+    // the page's scroll / wheel walks the camera along the corridor (dy in pixels, down = forward)
+    nudge(dy) { if (reduced || mode !== 'walk') return; lastInput = performance.now(); target += -dy * 0.0021; },
     get mode() { return mode; },
     setOffset(s) { offsetS = Math.max(0, s); resize(); },
     exit() {
