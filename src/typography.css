@@ -1,0 +1,2 @@
+/* Home headline: the same size, weight and line breaks in light and dark ("moments." always sits on its own line). */
+html body .home-v2 .intro-copy h1{font-size:clamp(40px,4.1vw,60px);line-height:1.04;font-weight:700;letter-spacing:-.04em;max-width:none}

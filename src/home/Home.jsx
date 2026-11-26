@@ -18,7 +18,7 @@ export default function Home({ onIntroDone, onOpenLab, transit }) {
       <section className="home-intro" aria-labelledby="home-title">
         <div className="intro-copy">
           <div className="home-kicker"><span className="kicker-mark">✳</span> A LITTLE CURIOSITY GOES A LONG WAY</div>
-          <h1 id="home-title">Less memorizing.<br/>More <em className="marker">lightbulb moments.</em></h1>
+          <h1 id="home-title">Less memorizing.<br/>More <em className="marker">lightbulb<br/>moments.</em></h1>
           <p>Your own physics and chemistry lab. Build, experiment, and learn from every mistake—with Nour by your side.</p>
           <div className="intro-actions"><a className="home-primary" href="#experiments" onClick={e => {e.preventDefault();document.getElementById('experiments')?.scrollIntoView({behavior:'smooth',block:'start'});}}>Find an experiment</a><button className="home-text-button" onClick={openNour}>Ask Nour, your lab instructor</button></div>
           <ul className="hero-stats" aria-label="What you get"><li><b>{LIVE.length}</b><span>live labs</span></li><li><b>2</b><span>sciences</span></li><li><b>3D</b><span>walk-in rooms</span></li><li><b>24/7</b><span>help from Nour</span></li></ul>
