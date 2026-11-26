@@ -61,6 +61,7 @@ There are no student or tutor roles any more: **every account can practise and c
 1. **Lab studio → Create a lab**: pick a simulation, set its parameters, write the teaching content and choose **Public** or **Private**.
 2. **Private** labs get an 8-character access code (or your own 6–64 character password). It is shown once; the studio can make a new one, remove everyone's access, and list who has access.
 3. **Submit** publishes a new immutable version. Practice records point at the version the student used. **Unpublish** returns the lab to drafts for editing.
+   A fresh database includes a demo private lab: open `#details/demo-private` and enter **DEMO2026**.
 4. Anyone signed in can **report** a lab. Admins review reports at `#admin` and can take a lab down (the creator is notified) or restore it.
 
 ### Following and notifications

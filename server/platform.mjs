@@ -7,7 +7,7 @@ import CORE from '../src/lab/core.js';
 import { BASE } from '../shared/labConfig.js';
 import { openDb, importLegacyJson } from './db.mjs';
 import { ENGINES } from '../shared/engines/index.js';
-import { fail, nowIso, sha256, createLimiter, createLockout } from './lib.mjs';
+import { fail, nowIso, sha256, createLimiter, createLockout, hashSecret, normalizeCode } from './lib.mjs';
 import { createRouter, STATUS } from './router.mjs';
 import authRoutes from './routes/auth.mjs';
 import labRoutes from './routes/labs.mjs';
@@ -63,6 +63,14 @@ function seed(db) {
       db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, config, status, visibility, builtin, version, first_published_at, created_at)
               VALUES (?, 'sim2skill', ?, ?, ?, ?, ?, ?, ?, 'published', 'public', 1, 1, ?, ?)`,
         lab.id, lab.engine, lab.id, lab.title, lab.description, lab.outcomes, lab.instructions, JSON.stringify(config), now, now);
+    }
+    // Demo private lab with a known test code, so the private-lab flow works on a fresh database.
+    if (!db.get(`SELECT 1 FROM labs WHERE id = 'demo-private'`)) {
+      db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, status, visibility, builtin, version, first_published_at, created_at)
+              VALUES ('demo-private', 'sim2skill', 'circuits', 'series', 'Demo private lab: series resistors', 'A private lab for testing access codes. The code is DEMO2026.',
+              'Combine two resistors to reach a target current.', 'Enter the access code DEMO2026 to open this lab, then build the series circuit.', 'published', 'private', 1, 1, ?, ?)`, now, now);
+      const { salt, hash } = hashSecret(normalizeCode('DEMO2026'));
+      db.run('INSERT INTO lab_access (lab_id, salt, hash, rotated_at) VALUES (?, ?, ?, ?)', 'demo-private', salt, hash, now);
     }
   });
 }
