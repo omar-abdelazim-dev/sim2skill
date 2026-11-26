@@ -5,13 +5,14 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPlatformHandler } from '../server/platform.mjs';
+import { createPlatformHandler, loadEnvFile } from '../server/platform.mjs';
 import { openDb } from '../server/db.mjs';
 import { LabRetriever } from '../server/llm/retriever.mjs';
 import { createNourChain } from '../server/llm/chains.mjs';
 import { setModels } from '../server/llm/models.mjs';
 import { embedPending } from '../server/llm/rag.mjs';
 
+await loadEnvFile();
 const live = process.env.LIVE_EVAL === '1' && !!process.env.GEMINI_API_KEY;
 if (!live) { setModels({}); } // no chat model and no embeddings: FTS only
 
