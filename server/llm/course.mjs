@@ -10,7 +10,7 @@ import { BaseRetriever } from '@langchain/core/retrievers';
 import { embeddings } from './models.mjs';
 import { ftsQuery, cosine } from './retriever.mjs';
 
-export const CHUNK_SIZE = 1000, CHUNK_OVERLAP = 200, TOP_K = 5;
+export const CHUNK_SIZE = 1000, CHUNK_OVERLAP = 200, TOP_K = 8;
 const splitter = new RecursiveCharacterTextSplitter({ chunkSize: CHUNK_SIZE, chunkOverlap: CHUNK_OVERLAP });
 const sha = s => createHash('sha256').update(s).digest('hex');
 
