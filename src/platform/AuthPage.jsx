@@ -1,9 +1,9 @@
 // Sign-in / sign-up: a clean two-column page. Left, what Sim2Skill offers; right, the form.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api.js';
 import { LIVE } from '../labs.js';
 import CardFace from '../home/CardFace.jsx';
-import CorridorBackdrop from '../home/CorridorBackdrop.jsx';
+import './authFixed.css';
 
 const POINTS = [
   ['Practise', 'Walk into 3D physics and chemistry labs and learn from every mistake.'],
@@ -14,6 +14,8 @@ const POINTS = [
 export default function AuthPage({ onAuth }) {
   const [signup, setSignup] = useState(true), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const emailRef = useRef(null);
+  // the sign-in page is a fixed one-screen layout: no page scrollbar, nothing moves
+  useEffect(() => { document.body.classList.add('auth-static'); return () => document.body.classList.remove('auth-static'); }, []);
   const next = new URLSearchParams(location.hash.split('?')[1] || '').get('next');
   const nextLab = next?.startsWith('details/') ? LIVE.find(l => l.id === next.slice(8)) : null;
   async function submit(e) {
@@ -21,7 +23,7 @@ export default function AuthPage({ onAuth }) {
     try { onAuth((await api(signup ? 'signup' : 'login', 'POST', Object.fromEntries(new FormData(e.currentTarget)))).user); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }
-  return <><CorridorBackdrop /><main className="auth-page">
+  return <main className="auth-page">
     <section className="auth-intro">
       <div className="section-kicker">A PLACE FOR EVERY CURIOUS MIND</div>
       <h1>{signup ? <>Step inside <span className="marker">the lab.</span></> : <>Welcome <span className="marker">back.</span></>}</h1>
@@ -39,5 +41,5 @@ export default function AuthPage({ onAuth }) {
       <button className="home-primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
       <button type="button" className="platform-text" onClick={() => { setSignup(!signup); setError(''); emailRef.current?.focus(); }}>{signup ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
     </form>
-  </main></>;
+  </main>;
 }

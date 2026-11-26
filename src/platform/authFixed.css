@@ -1,0 +1,19 @@
+/* Sign-in / sign-up: one fixed screen. No page scrollbar, nothing sticky or moving. Small screens fall back to normal scrolling. */
+@media (min-width:901px) and (min-height:560px){
+  html:has(body.auth-static){overflow:hidden}
+  html body.auth-static{overflow:hidden;height:100dvh}
+  html body.auth-static .auth-page{height:calc(100dvh - 88px);box-sizing:border-box;padding-top:16px;padding-bottom:16px;align-items:center;overflow:hidden}
+  html body.auth-static .auth-panel{position:static}
+  html body.auth-static .auth-intro h1{margin:14px 0 clamp(14px,3vh,30px)}
+  html body.auth-static .auth-points{gap:clamp(10px,2vh,18px)}
+  html body.auth-static .auth-cards{margin-top:clamp(18px,4vh,44px);height:clamp(150px,22vh,210px)}
+}
+@media (min-width:901px) and (max-height:780px){html body.auth-static .auth-cards{display:none}}
+@media (min-width:901px) and (max-height:720px){
+  html body.auth-static .auth-page{height:calc(100dvh - 88px);padding-top:8px;padding-bottom:8px}
+  html body.auth-static .auth-panel{padding:20px 26px!important}
+  html body.auth-static .auth-panel h2{font-size:22px}
+  html body.auth-static .auth-panel label{margin-bottom:8px}
+  html body.auth-static .auth-panel input{padding:9px 12px;margin-top:4px}
+  html body.auth-static .auth-panel .platform-text{margin-top:2px;padding:4px 0}
+}
