@@ -6,7 +6,7 @@
 .home-backdrop-veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(251,250,246,.62),rgba(251,250,246,.14) 52%,rgba(251,250,246,.3)),linear-gradient(rgba(251,250,246,0) 60%,rgba(251,250,246,.35))}
 html[data-theme="dark"] .home-backdrop-veil{background:linear-gradient(90deg,rgba(10,14,17,.58),rgba(10,14,17,.12) 52%,rgba(10,14,17,.32)),linear-gradient(rgba(10,14,17,0) 60%,rgba(10,14,17,.4))}
 /* page content sits above the backdrop; the nav stays solid enough to read */
-body.home-corridor .home-v2{position:relative;z-index:1}
+body.home-corridor .home-v2,body.home-corridor .auth-page{position:relative;z-index:1}
 body.home-corridor .platform-nav{position:sticky;z-index:5}
 body.home-corridor .home-footer{background:none}
 @media (prefers-reduced-motion:reduce){.home-backdrop-stage{transition:none}}
