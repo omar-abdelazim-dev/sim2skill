@@ -2,7 +2,9 @@ const CORE = (() => {
   const PARTS = {
     wire:{kind:'wire',ohms:0,label:'Wire'},
     r47:{kind:'res',ohms:47},r150:{kind:'res',ohms:150},r680:{kind:'res',ohms:680},r2k:{kind:'res',ohms:2000},r4k7:{kind:'res',ohms:4700},r22k:{kind:'res',ohms:22000},r47k:{kind:'res',ohms:47000},
-    pot:{kind:'res',ohms:1000,variable:true,label:'Adjustable resistor'},
+    // Variable parts take their value from the bench (bench.values[slot]); min/max bound what a student can set.
+    pot:{kind:'res',ohms:1000,variable:true,min:10,max:100000,label:'Adjustable resistor'},
+    custom:{kind:'res',ohms:1000,variable:true,custom:true,min:1,max:1000000,label:'Custom resistor'},
     ledGreen:{kind:'led',vf:2.2,rated:.020,max:.030,min:.002,label:'Green LED',color:'#32c97b'},
     ledBlue:{kind:'led',vf:3.2,rated:.020,max:.030,min:.002,label:'Blue LED',color:'#428dff'},
     diode:{kind:'diode',vf:.7,rated:.1,max:.2,min:0,label:'Silicon diode'},
@@ -13,12 +15,32 @@ const CORE = (() => {
     c10:{kind:'cap',farads:10e-6}, c100:{kind:'cap',farads:100e-6}, c1000:{kind:'cap',farads:1000e-6}
   };
   const R_SHORT = 1.5; // wire plus battery internal resistance, used only for short circuits
-  const fmtR = o => o >= 1000 ? (o / 1000) + ' kΩ' : o + ' Ω';
+  const fmtR = o => o >= 1e6 ? +(o / 1e6).toPrecision(3) + ' MΩ' : o >= 1000 ? +(o / 1000).toPrecision(3) + ' kΩ' : +o.toPrecision(3) + ' Ω';
   const fmtI = a => a >= 1 ? a.toFixed(1) + ' A' : ((a * 1000 >= 100) ? (a * 1000).toFixed(0) : (a * 1000).toFixed(1)) + ' mA';
   const fmtV = v => v.toFixed(2).replace(/0$/, '') + ' V';
   const fmtT = s => s < 1 ? Math.round(s * 1000) + ' ms' : (Math.round(s * 100) / 100) + ' s';
   const fmtC = f => Math.round(f * 1e6) + ' µF';
   const partLabel = id => { const p = PARTS[id]; return !p ? '' : p.kind === 'res' ? (p.label || fmtR(p.ohms)) : p.kind === 'cap' ? fmtC(p.farads) : p.label; };
+
+  // Standard resistor values (IEC 60063). Real resistors are only sold in these, in every decade.
+  const SERIES = {
+    e12:[1.0,1.2,1.5,1.8,2.2,2.7,3.3,3.9,4.7,5.6,6.8,8.2],
+    e24:[1.0,1.1,1.2,1.3,1.5,1.6,1.8,2.0,2.2,2.4,2.7,3.0,3.3,3.6,3.9,4.3,4.7,5.1,5.6,6.2,6.8,7.5,8.2,9.1]
+  };
+  // Nearest standard value on a log scale (how manufacturers space them).
+  function nearestStandard(ohms, series) {
+    const list = SERIES[series]; if (!list || !(ohms > 0)) return ohms;
+    const decade = Math.pow(10, Math.floor(Math.log10(ohms)));
+    let best = null;
+    for (const d of [decade / 10, decade, decade * 10]) for (const m of list) {
+      const v = +(m * d).toPrecision(3);
+      if (best === null || Math.abs(Math.log(v / ohms)) < Math.abs(Math.log(best / ohms))) best = v;
+    }
+    return best;
+  }
+  const isStandard = (ohms, series) => nearestStandard(ohms, series) === ohms;
+  // The value a variable part in `slot` is set to. Older benches stored one shared value in `pot`.
+  const valueOf = (b, slot, p) => { const v = b?.values?.[slot] ?? b?.pot; return Number.isFinite(v) ? Math.max(p.min, Math.min(p.max, v)) : p.ohms; };
 
   const EXPERIMENTS = {
     ohm:{ n:1, title:"Ohm's law", goal:'Make exactly 10 mA flow through the resistor (within 5%).',
@@ -55,13 +77,17 @@ const CORE = (() => {
   EXPERIMENTS.led.slots[1].options = ['led','ledGreen','ledBlue'];
   EXPERIMENTS.rc.slots[1].options = ['c1','c10','c47','c100','c220','c470','c1000'];
   const extra = {
-    series:{title:'Series resistance',goal:'Build a series circuit carrying 3 mA from a 9 V supply (within 5%).',target:.003,voltage:9,parts:resistors.filter(id=>id!=='pot'),concept:'Series resistances add: Req = R1 + R2.',question:'What happens to total resistance when you add a series resistor?',answers:['It increases','It decreases','It stays the same'],correct:0},
-    parallel:{title:'Parallel paths',goal:'Build two parallel branches drawing 12 mA total from 6 V (within 5%).',target:.012,voltage:6,parts:resistors.filter(id=>id!=='pot'),concept:'Each branch sees the supply. Total current is the sum of branch currents.',question:'What is the voltage across each parallel branch?',answers:['Half the supply','The full supply','Zero'],correct:1},
-    divider:{title:'Voltage divider',goal:'Produce 3 V across the lower resistor from 9 V (within 5%).',target:3,voltage:9,parts:resistors.filter(id=>id!=='pot'),concept:'Vout = Vin × R2 / (R1 + R2). The divider is unloaded.',question:'With two equal divider resistors, Vout is…',answers:['The full supply','Half the supply','Twice the supply'],correct:1},
+    series:{title:'Series resistance',goal:'Build a series circuit carrying 3 mA from a 9 V supply (within 5%).',target:.003,voltage:9,parts:resistors,concept:'Series resistances add: Req = R1 + R2.',question:'What happens to total resistance when you add a series resistor?',answers:['It increases','It decreases','It stays the same'],correct:0},
+    parallel:{title:'Parallel paths',goal:'Build two parallel branches drawing 12 mA total from 6 V (within 5%).',target:.012,voltage:6,parts:resistors,concept:'Each branch sees the supply. Total current is the sum of branch currents.',question:'What is the voltage across each parallel branch?',answers:['Half the supply','The full supply','Zero'],correct:1},
+    divider:{title:'Voltage divider',goal:'Produce 3 V across the lower resistor from 9 V (within 5%).',target:3,voltage:9,parts:resistors,concept:'Vout = Vin × R2 / (R1 + R2). The divider is unloaded.',question:'With two equal divider resistors, Vout is…',answers:['The full supply','Half the supply','Twice the supply'],correct:1},
     diode:{title:'Diode direction',goal:'Forward-bias a silicon diode and produce 4.3 mA from 5 V (within 5%).',target:.0043,voltage:5,parts:['diode'],concept:'The simplified silicon diode drops 0.7 V forward and blocks reverse current.',question:'A reverse-biased idealized diode…',answers:['Conducts more current','Blocks current','Becomes a battery'],correct:1}
   };
   Object.entries(extra).forEach(([id,e],i)=>{EXPERIMENTS[id]={n:i+4,title:e.title,goal:e.goal,target:e.target,tol:.05,volt:{fixed:e.voltage},spec:e.concept,intro:e.goal,slots:[{id:'R',name:id==='diode'?'Series resistor':'Resistor R1',options:resistors},{id:'D',name:id==='diode'?'Diode':'Resistor R2',options:e.parts}],asks:[['How does this circuit work?',e.concept]],check:{q:e.question,options:e.answers,correct:e.correct,right:e.concept,wrong:e.concept}};});
-  const effective = (id,b) => {const p=PARTS[id];return p?.variable?{...p,ohms:Number.isFinite(b.pot)?Math.max(100,Math.min(10000,b.pot)):1000}:p;};
+  // Creators may also offer a Custom resistor (any value) in any resistor slot; built-in labs keep real parts.
+  for (const e of Object.values(EXPERIMENTS)) for (const sl of e.slots) sl.creatorOptions = sl.options.some(id => PARTS[id].kind === 'res' && id !== 'wire') ? [...sl.options, 'custom'] : [...sl.options];
+  const effective = (id,b,slot='R') => {const p=PARTS[id];return p?.variable?{...p,ohms:valueOf(b,slot,p)}:p;};
+  // Shown on parts, the board and the 3D bench: variable parts show their current value.
+  const partText = (id,b,slot) => {const p=PARTS[id];return p?.variable?fmtR(valueOf(b,slot,p))+(p.custom?'':' adjustable'):partLabel(id);};
 
   const MISTAKES = {
     'ohm:open_circuit':{label:'Open circuit',concept:'A circuit needs a complete loop'},
@@ -84,7 +110,7 @@ const CORE = (() => {
   for(const [exp,issues] of Object.entries({series:['open_circuit','current_off_target','component_overload'],parallel:['open_circuit','current_off_target','component_overload'],divider:['open_circuit','voltage_off_target','component_overload'],diode:['open_circuit','diode_reversed','current_off_target','component_overload']}))for(const issue of issues)MISTAKES[exp+':'+issue]={label:issue.replaceAll('_',' '),concept:EXPERIMENTS[exp].spec};
 
   function simulate(exp, b) {
-    const R = b.R ? effective(b.R,b) : null, D = b.D ? effective(b.D,b) : null, V = b.V;
+    const R = b.R ? effective(b.R,b,'R') : null, D = b.D ? effective(b.D,b,'D') : null, V = b.V;
     if (exp === 'ohm') {
       if (!R) return {status:'open', I:0, vR:0};
       if (R.kind === 'wire') return {status:'short', I:V / R_SHORT, vR:0};
@@ -158,8 +184,8 @@ const CORE = (() => {
       const formula=exp==='divider'?'Vout = Vin × R2 / (R1 + R2)':exp==='parallel'?'I = V/R1 + V/R2':exp==='series'?'I = V / (R1 + R2)':exp==='rc'?'τ = R × C':exp==='led'||exp==='diode'?'I = (Vs − Vf) / R':'I = V / R';
       return [`Compare the measurements with your goal. Which component could move the result toward the target?`,`${formula}. Think about which value to increase or decrease.`,`${formula}. Your supply is ${fmtV(b.V)}. ${E.goal} Change one component and test again.`][n];
     }
-    const R = b.R ? effective(b.R,b) : null, D = b.D ? effective(b.D,b) : null, V = b.V;
-    const rl = R ? partLabel(b.R) : '', L = Math.max(1, Math.min(3, level)) - 1;
+    const R = b.R ? effective(b.R,b,'R') : null, D = b.D ? effective(b.D,b,'D') : null, V = b.V;
+    const rl = R ? partText(b.R, b, 'R') : '', L = Math.max(1, Math.min(3, level)) - 1;
     const pick = arr => arr[L];
     if (m === 'open_circuit') {
       const miss = missing(exp, b).join(' and ');
@@ -212,7 +238,7 @@ const CORE = (() => {
       'I stopped the test before any damage. Look at the + mark on the capacitor. Which battery terminal does it face?',
       'Electrolytic capacitors are polarised. The + plate must face the higher voltage.',
       'A reversed electrolytic capacitor can overheat and burst in a real lab. Select the capacitor and tap Flip so its + side faces the battery plus terminal.']);
-    const cl = D ? partLabel(b.D) : '';
+    const cl = D ? partText(b.D, b, 'D') : '';
     if (m === 'tau_too_short') return pick([
       `The capacitor reached 63% in ${fmtT(s.tau)}. The target is 1 s. What sets how fast it charges?`,
       `The time constant is τ = R × C. Yours is ${rl} × ${cl} = ${fmtT(s.tau)}. To slow the charge, make R or C larger.`,
@@ -224,6 +250,6 @@ const CORE = (() => {
     return `τ = ${rl} × ${cl} = ${fmtT(s.tau)}. The scope shows ${fmtV(s.v63)} at 1 s, which is 63% of 5 V. After about 5τ the capacitor is practically full.`;
   }
 
-  return {PARTS, EXPERIMENTS, MISTAKES, effective, simulate, detect, hintText, partLabel, fmtR, fmtI, fmtV, fmtT, fmtC};
+  return {PARTS, EXPERIMENTS, MISTAKES, SERIES, nearestStandard, isStandard, partText, effective, simulate, detect, hintText, partLabel, fmtR, fmtI, fmtV, fmtT, fmtC};
 })();
 export default CORE;

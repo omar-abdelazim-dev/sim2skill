@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import CORE from './core.js';
 import { caps } from '../claude.js';
-import { BASE, buildDefinition, startingBench, runConfigured } from '../../shared/labConfig.js';
+import { BASE, buildDefinition, startingBench, runConfigured, settleValue } from '../../shared/labConfig.js';
 
 const { PARTS, EXPERIMENTS, MISTAKES, simulate, detect, hintText, partLabel, fmtV } = CORE;
 
@@ -121,7 +121,7 @@ function evaluate() {
   else if (m === 'burnt_led') S.status = 'burnt';
   else if (m === 'cap_reversed') { S.closed = false; S.status = 'stopped'; }
   else if (m === 'success') { S.status = 'success'; S.completed[exp] = true; S.question = { picked: null }; }
-  rt.scope = (exp === 'rc' && sim.status === 'ok') ? { tau: sim.tau, V: b.V, R: CORE.effective(b.R,b).ohms, t0: performance.now(), dur: 1700, done: reduced } : null;
+  rt.scope = (exp === 'rc' && sim.status === 'ok') ? { tau: sim.tau, V: b.V, R: CORE.effective(b.R,b,'R').ohms, t0: performance.now(), dur: 1700, done: reduced } : null;
   logLine(`Switch closed → detector: <b>${m}</b>`);
   say(hintText(exp, m, level, b, sim), true);
   bump();
@@ -131,7 +131,9 @@ function evaluate() {
 
 export const ACT = {
   loadLab(lab) { for(const id of Object.keys(BASE))EXPERIMENTS[id]=structuredClone(BASE[id]);const e=buildDefinition(lab.template,lab.config);e.title=lab.title;e.intro=lab.description+' '+e.goal;EXPERIMENTS[lab.template]=e;S.lab=lab;S.exp=lab.template;S.bench[lab.template]=startingBench(lab.template,lab.config);S.last=null;S.closed=false;S.status='idle';S.active='R';S.completed={};S.lastMistake={};S.level={};S.ctx={};S.question=null;rt.scope=null;rt.held=null;rt.heldRev=false;S.panels={meters:true,nour:true,kit:true};say(e.intro,false);bump(); },
-  pot(v) { const b=S.bench[S.exp];touchBench();b.pot=Math.max(100,Math.min(10000,Number(v)));bump(); },
+  // Set the value of a variable part (adjustable or custom resistor) in one slot. Custom values are rounded
+  // to a real part when the lab asks for it; the server checks the same rule.
+  setValue(slot, ohms) { const b=S.bench[S.exp], v=settleValue(b[slot], Number(ohms), EXPERIMENTS[S.exp].rounding); if(v===null)return; touchBench(); b.values={...b.values,[slot]:v}; logLine(`Set the ${slotName(slot)} to ${CORE.fmtR(v)}`); bump(); },
   enter(id) { S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();
     logLine('Entered dedicated experiment room'); say(EXPERIMENTS[id].intro, true); rt.entering = true; bump(); if (rt.lab) { rt.lab.flyIn(id); rt.entering = false; } },
   exp(id) { if (S.lab && id !== S.lab.template) return; if (id === S.exp) return; S.exp = id; S.closed = false; S.status = 'idle'; S.last = null; rt.scope = null; S.question = null; S.active = 'R'; S.active = firstEmpty();

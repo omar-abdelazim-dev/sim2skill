@@ -3,13 +3,14 @@ import { useEffect, useState } from 'react';
 import { api } from './api.js';
 import Builder from './Builder.jsx';
 import CardFace from '../home/CardFace.jsx';
+import { QuizEditor } from './Quiz.jsx';
 import '../chem/chem.css';
 import { REAGENTS, INDICATORS, phAt, equivalenceVolume, indicatorSuitable, indicatorVolume, titration } from '../../shared/engines/titration.js';
 import { REACTIONS, kinetics, run } from '../../shared/engines/kinetics.js';
 
 const ENGINES = { titration, kinetics };
 const KINDS = [
-  { id: 'circuits', art: 'ohm', title: 'Physics: circuit', text: 'Seven circuit layouts with your own supply, parts, target and starting circuit.' },
+  { id: 'circuits', art: 'ohm', title: 'Physics: circuits', text: 'Seven circuit layouts with your own supply, parts, target and starting circuit.' },
   { id: 'titration', art: 'flask', title: 'Chemistry: titration', text: 'Any acid or base from the catalogue, your concentrations, dilution, endpoint and indicators.' },
   { id: 'kinetics', art: 'beakers', title: 'Chemistry: kinetics', text: 'A catalogued reaction, your rate constant, temperatures and tolerance.' }
 ];
@@ -37,7 +38,7 @@ function Num({ label, value, onChange, step = 'any', min, max, help }) {
 
 function ChemBuilder({ engine, lab, onSaved, onBack }) {
   const E = ENGINES[engine];
-  const [form, setForm] = useState(() => lab ? { ...lab, accessCode: '' } : { template: engine, title: '', description: '', outcomes: '', instructions: '', visibility: 'public', accessCode: '', config: E.defaultConfig() });
+  const [form, setForm] = useState(() => lab ? { ...lab, accessCode: '' } : { template: engine, title: '', description: '', outcomes: '', instructions: '', visibility: 'public', accessCode: '', quiz: [], config: E.defaultConfig() });
   const [error, setError] = useState(''), [check, setCheck] = useState(''), [busy, setBusy] = useState(false), [issued, setIssued] = useState('');
   const c = form.config;
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setCheck(''); };
@@ -103,6 +104,7 @@ function ChemBuilder({ engine, lab, onSaved, onBack }) {
         <label>Learning outcomes<textarea value={form.outcomes} onChange={e => set('outcomes', e.target.value)} maxLength={1500} /></label>
         <label>Instructions<textarea value={form.instructions} onChange={e => set('instructions', e.target.value)} maxLength={6000} /></label>
       </section>
+      <section className="platform-panel chem-builder-quiz"><QuizEditor quiz={form.quiz || []} onChange={q => set('quiz', q)} /></section>
     </div>
   </form></main>;
 }

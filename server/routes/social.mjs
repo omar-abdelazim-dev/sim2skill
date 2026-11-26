@@ -3,16 +3,17 @@ import { publicUser } from './auth.mjs';
 import { toLab } from './labs.mjs';
 
 export default function register(r, { db, limit }) {
+  // Any account can be followed, including the built-in Sim2Skill team account (which has no email).
   const target = (ctx, id) => {
     const me = ctx.requireUser();
     if (id === me.id) fail(400, 'You cannot do that to your own account.');
-    const u = db.get('SELECT id, name, bio FROM users WHERE id = ? AND email IS NOT NULL', id);
+    const u = db.get('SELECT id, name, bio, avatar_id FROM users WHERE id = ?', id);
     if (!u) fail(404, 'User not found.');
     return { me, u };
   };
 
   r.get('profiles/:id', ctx => {
-    const u = db.get('SELECT id, name, bio FROM users WHERE id = ?', ctx.params.id);
+    const u = db.get('SELECT id, name, bio, avatar_id FROM users WHERE id = ?', ctx.params.id);
     const viewer = ctx.user?.id || '';
     const hasPublic = u && db.get(`SELECT 1 FROM labs WHERE author_id = ? AND status = 'published' AND visibility = 'public' AND taken_down = 0`, u.id);
     if (!u || (!hasPublic && viewer !== u.id)) fail(404, 'Profile not found.');
@@ -68,7 +69,7 @@ export default function register(r, { db, limit }) {
 
   r.get('me/following', ctx => {
     const me = ctx.requireUser();
-    return db.all('SELECT u.id, u.name, u.bio FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ? ORDER BY f.created_at DESC', me.id);
+    return db.all('SELECT u.id, u.name, u.bio, u.avatar_id FROM follows f JOIN users u ON u.id = f.followee_id WHERE f.follower_id = ? ORDER BY f.created_at DESC', me.id).map(publicUser);
   });
 
   // Polled every 30 s by the bell in the nav.

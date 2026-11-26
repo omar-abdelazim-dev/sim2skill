@@ -76,13 +76,13 @@ export function createLab3D(host){
   const hit = (parent, size, pos, data) => { const o = new T.Mesh(new T.BoxGeometry(size[0], size[1], size[2]), new T.MeshBasicMaterial({transparent:true, opacity:0, depthWrite:false})); o.position.set(pos[0], pos[1], pos[2]); o.userData = data; parent.add(o); clickables.push(o); return o; };
 
   // a loose part, origin at its base, for the parts tables and the student's hand
-  function makePart(id){
+  function makePart(id, ohms){
     const p = PARTS[id], g = new T.Group();
     if (p.kind === 'res') {
       const rz = o => { o.rotation.z = Math.PI / 2; return o; };
       rz(cyl(0.1, 0.1, 0.44, mat.body, 0, 0.11, 0, g)); ball(0.1, mat.body, -0.22, 0.11, 0, g).scale.x = 0.6; ball(0.1, mat.body, 0.22, 0.11, 0, g).scale.x = 0.6;
-      if(p.variable){cyl(.07,.07,.1,mat.black,0,.27,0,g);}
-      bands(p.ohms).concat(['#C9A227']).forEach((c, i) => rz(cyl(0.104, 0.104, 0.046, M(new T.Color(c).getHex(), {roughness:0.5}), i < 3 ? -0.15 + i * 0.085 : 0.15, 0.11, 0, g)));
+      if(p.variable&&!p.custom){cyl(.07,.07,.1,mat.black,0,.27,0,g);} // adjustment knob
+      bands(ohms ?? p.ohms).concat(['#C9A227']).forEach((c, i) => rz(cyl(0.104, 0.104, 0.046, M(new T.Color(c).getHex(), {roughness:0.5}), i < 3 ? -0.15 + i * 0.085 : 0.15, 0.11, 0, g)));
       seg(V3(-0.42, 0.11, 0), V3(-0.26, 0.11, 0), 0.016, mat.metal, g); seg(V3(0.42, 0.11, 0), V3(0.26, 0.11, 0), 0.016, mat.metal, g);
     } else if (p.kind === 'wire') {
       seg(V3(-0.36, 0.04, 0), V3(0.36, 0.04, 0), 0.03, mat.red, g); ball(0.035, mat.metal, -0.36, 0.04, 0, g); ball(0.035, mat.metal, 0.36, 0.04, 0, g);
@@ -176,15 +176,15 @@ export function createLab3D(host){
     rz(cyl(0.1, 0.1, 0.44, mat.body, 0, 1.21, 0, st.rG)); ball(0.1, mat.body, -0.22, 1.21, 0, st.rG).scale.x = 0.6; ball(0.1, mat.body, 0.22, 1.21, 0, st.rG).scale.x = 0.6;
     bands(p.ohms).concat(['#C9A227']).forEach((c, i) => { const m = M(new T.Color(c).getHex(), {roughness:0.5}); const o = rz(cyl(0.104, 0.104, 0.046, m, i < 3 ? -0.15 + i * 0.085 : 0.15, 1.21, 0, st.rG)); o.userData.own = true; });
     seg(V3(-0.45, 1.13, 0), V3(-0.26, 1.21, 0), 0.016, mat.metal, st.rG); seg(V3(0.45, 1.13, 0), V3(0.26, 1.21, 0), 0.016, mat.metal, st.rG);
-    st.rLabel.set(b.R==='pot'?CORE.fmtR(b.pot||1000)+' variable':partLabel(b.R));
+    st.rLabel.set(CORE.partText(b.R, b, 'R'));
   }
-  function dText(st, b){ const p = b.D ? PARTS[b.D] : null; if (!p) return EXPERIMENTS[st.exp].slots[1].name + ' slot'; return p.kind === 'led' ? (b.burnt ? 'LED burnt out' : p.label) : partLabel(b.D); }
+  function dText(st, b){ const p = b.D ? PARTS[b.D] : null; if (!p) return EXPERIMENTS[st.exp].slots[1].name + ' slot'; return p.kind === 'led' ? (b.burnt ? 'LED burnt out' : p.label) : CORE.partText(b.D, b, 'D'); }
   function fillD(st, b){
     clear(st.dG); st.led = null; const p = b.D ? PARTS[b.D] : null;
     st.dLabel.set(dText(st, b), b.burnt ? '#BF3A31' : undefined);
     if (!p) { box(0.3, 0.34, 0.5, mat.ghost, 0, 1.25, 0, st.dG, false); st.plus.set(''); return; }
     if(p.kind==='res'||p.kind==='diode'){
-      st.plus.set('');const m=makePart(b.D);m.position.y=1.09;m.rotation.y=st.exp==='parallel'?0:Math.PI/2;if(p.kind==='diode'&&b.reversed)m.rotation.y+=Math.PI;st.dG.add(m);return;
+      st.plus.set('');const m=makePart(b.D, p.variable ? CORE.effective(b.D, b, 'D').ohms : undefined);m.position.y=1.09;m.rotation.y=st.exp==='parallel'?0:Math.PI/2;if(p.kind==='diode'&&b.reversed)m.rotation.y+=Math.PI;st.dG.add(m);return;
     }
     st.plus.set('+'); st.plus.sprite.position.z = b.reversed ? 0.38 : -0.38;
     if (p.kind === 'led') {
@@ -208,7 +208,7 @@ export function createLab3D(host){
     g.fillStyle = '#0B161B'; g.fillRect(0, 0, 1024, 512); g.fillStyle = '#F2B705'; g.fillRect(0, 0, 1024, 12); g.textAlign = 'left'; g.textBaseline = 'alphabetic';
     g.font = '600 30px "IBM Plex Mono", monospace'; g.fillText('EXPERIMENT ' + E.n, 44, 66);
     if (S.completed[st.exp]) { g.fillStyle = '#4CC38A'; g.textAlign = 'right'; g.fillText('✓ DONE', 980, 66); g.textAlign = 'left'; }
-    g.fillStyle = '#FFFFFF'; g.font = '700 72px "Barlow Condensed", "Arial Narrow", sans-serif'; g.fillText(E.title, 44, 140);
+    g.fillStyle = '#FFFFFF'; g.font = '700 64px "Geist", system-ui, sans-serif'; g.fillText(E.title, 44, 140);
     g.fillStyle = '#B9C9D0'; g.font = '400 32px "IBM Plex Sans", system-ui, sans-serif'; wrap(g, E.goal, 44, 190, 940, 40);
     if (st.exp === 'rc') { plotScope(g, 30, 232, 964, 268, {line:'#2B424C', dim:'#8FA6B0', ink:'#FFFFFF', trace:'#F2B705'}, 22, active ? rt.scope : null); return; }
     if(['series','parallel','divider','diode'].includes(st.exp)){
@@ -358,7 +358,7 @@ export function createLab3D(host){
     const hk = rt.held ? rt.held.id + (rt.heldRev ? 'r' : '') : '';
     if (hk !== heldKey) { heldKey = hk; clear(held); if (rt.held) { const m = makePart(rt.held.id); m.scale.setScalar(0.34); if (rt.heldRev) m.rotation.z = Math.PI; m.traverse(o => { o.castShadow = false; }); held.add(m); } }
     Object.keys(stations).forEach(k => { const st = stations[k], b = S.bench[k], active = k === S.exp, sim = active ? shown() : null;
-      const key = [b.R, b.D, b.reversed, b.burnt,b.pot].join('|'); if (key !== st.key) { st.key = key; fillR(st, b); if (st.hasD) fillD(st, b); }
+      const key = [b.R, b.D, b.reversed, b.burnt, b.pot, b.values?.R, b.values?.D].join('|'); if (key !== st.key) { st.key = key; fillR(st, b); if (st.hasD) fillD(st, b); }
       st.closed = active && S.closed; st.volt.set(fmtV(b.V), '#F2B705');
       const fuse = active && S.status === 'fuse'; st.swLabel.set(fuse ? 'fuse tripped' : st.closed ? 'closed' : 'open', fuse ? '#BF3A31' : undefined);
       const run = k === 'rc' && active && rt.scope;

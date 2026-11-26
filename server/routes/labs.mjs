@@ -1,24 +1,47 @@
 import { randomUUID } from 'node:crypto';
 import { fail, nowIso, hashSecret, verifySecret, makeCode, normalizeCode, labAccess, VISIBLE_SQL, requireEntitlement, notifyFollowersOfLab } from '../lib.mjs';
 import { engineOfTemplate, engineFor } from '../../shared/engines/index.js';
-import { publicUser } from './auth.mjs';
+import { publicUser, mediaUrl } from './auth.mjs';
 import { withStatus } from '../router.mjs';
 import { indexLab, removeLabFromIndex } from '../llm/rag.mjs';
 
 const BUILDER = { maxBody: 200000 };
 const FIELDS = { title: [3, 100], description: [0, 700], outcomes: [0, 1500], instructions: [0, 6000] };
+export const QUIZ_LIMITS = { questions: 20, choices: [2, 6], question: [3, 300], choice: [1, 200], explain: 500 };
+
+// A creator's quiz: up to 20 multiple-choice questions, each with 2-6 choices and one correct answer.
+export function cleanQuiz(quiz) {
+  if (quiz === undefined || quiz === null) return [];
+  if (!Array.isArray(quiz) || quiz.length > QUIZ_LIMITS.questions) fail(400, `A quiz can have up to ${QUIZ_LIMITS.questions} questions.`);
+  return quiz.map((item, i) => {
+    const n = i + 1, q = typeof item?.q === 'string' ? item.q.trim() : '';
+    if (q.length < QUIZ_LIMITS.question[0] || q.length > QUIZ_LIMITS.question[1]) fail(400, `Quiz question ${n} needs ${QUIZ_LIMITS.question[0]}–${QUIZ_LIMITS.question[1]} characters.`);
+    const choices = Array.isArray(item.choices) ? item.choices.map(c => (typeof c === 'string' ? c.trim() : '')) : [];
+    if (choices.length < QUIZ_LIMITS.choices[0] || choices.length > QUIZ_LIMITS.choices[1]) fail(400, `Quiz question ${n} needs ${QUIZ_LIMITS.choices[0]}–${QUIZ_LIMITS.choices[1]} answer choices.`);
+    if (choices.some(c => c.length < QUIZ_LIMITS.choice[0] || c.length > QUIZ_LIMITS.choice[1])) fail(400, `Fill in every answer choice for question ${n} (up to ${QUIZ_LIMITS.choice[1]} characters).`);
+    if (new Set(choices.map(c => c.toLowerCase())).size !== choices.length) fail(400, `Question ${n} has two identical choices.`);
+    if (!Number.isInteger(item.answer) || item.answer < 0 || item.answer >= choices.length) fail(400, `Mark the correct answer for question ${n}.`);
+    const explain = typeof item.explain === 'string' ? item.explain.trim() : '';
+    if (explain.length > QUIZ_LIMITS.explain) fail(400, `The explanation for question ${n} is too long (up to ${QUIZ_LIMITS.explain} characters).`);
+    return { q, choices, answer: item.answer, explain };
+  });
+}
 
 export function toLab(db, l, viewer) {
   const config = l.config ? JSON.parse(l.config) : null;
   let goal = '';
   try { goal = engineFor(l.engine).goal(l.template, config || undefined); } catch { goal = ''; }
-  const author = db.get('SELECT id, name, bio FROM users WHERE id = ?', l.author_id);
+  const author = db.get('SELECT id, name, bio, avatar_id FROM users WHERE id = ?', l.author_id);
   const own = viewer && viewer.id === l.author_id;
   const shown = own ? config : (engineFor(l.engine).publicConfig?.(config) ?? config);
+  const quiz = l.quiz ? JSON.parse(l.quiz) : [];
   return {
     id: l.id, authorId: l.author_id, author: publicUser(author), engine: l.engine, template: l.template,
     subject: engineFor(l.engine).subject, title: l.title, description: l.description, outcomes: l.outcomes,
     instructions: l.instructions, config: shown, goal, status: l.status, visibility: l.visibility, builtin: !!l.builtin,
+    thumbnail: mediaUrl(l.thumbnail_id),
+    // Students see the questions and choices only; answers and explanations come back after they submit.
+    quiz: own ? quiz : quiz.map(({ q, choices }) => ({ q, choices })),
     version: l.version, createdAt: l.created_at, updatedAt: l.updated_at,
     ...(own ? { isOwner: true, takenDown: !!l.taken_down, takedownReason: l.takedown_reason || undefined } : {})
   };
@@ -38,7 +61,7 @@ function cleanLab(body) {
   try { config = engine.validateConfig(body.template, body.config ?? undefined); } catch (e) { fail(400, e.message); }
   const visibility = body.visibility === undefined ? 'public' : body.visibility;
   if (!['public', 'private'].includes(visibility)) fail(400, 'Visibility must be public or private.');
-  return { ...out, engine: engine.id, template: body.template, config, visibility };
+  return { ...out, engine: engine.id, template: body.template, config, visibility, quiz: cleanQuiz(body.quiz) };
 }
 
 // Owner-chosen password (6–64 characters) or a generated 8-character code. Returned once, stored hashed.
@@ -67,7 +90,7 @@ export default function register(r, { db, limit, lockout }) {
     const l = getLab(id), access = labAccess(db, l, ctx.user);
     if (access === 'none') fail(404, 'Lab not found.');
     if (access === 'locked') fail(403, 'This lab is private. Enter the access code from its creator.',
-      { locked: true, lab: { id: l.id, author: publicUser(db.get('SELECT id, name, bio FROM users WHERE id = ?', l.author_id)) } });
+      { locked: true, lab: { id: l.id, author: publicUser(db.get('SELECT id, name, bio, avatar_id FROM users WHERE id = ?', l.author_id)) } });
     return l;
   };
 
@@ -96,9 +119,9 @@ export default function register(r, { db, limit, lockout }) {
     const id = randomUUID();
     let accessCode;
     db.tx(() => {
-      db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, config, status, visibility, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`, id, user.id, lab.engine, lab.template, lab.title, lab.description,
-        lab.outcomes, lab.instructions, JSON.stringify(lab.config), lab.visibility, nowIso());
+      db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, config, quiz, status, visibility, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?)`, id, user.id, lab.engine, lab.template, lab.title, lab.description,
+        lab.outcomes, lab.instructions, JSON.stringify(lab.config), JSON.stringify(lab.quiz), lab.visibility, nowIso());
       if (lab.visibility === 'private') accessCode = setAccessCode(db, id, ctx.body.accessCode);
     });
     return withStatus(201, { ...toLab(db, getLab(id), user), ...(accessCode ? { accessCode } : {}) });
@@ -113,8 +136,8 @@ export default function register(r, { db, limit, lockout }) {
     requireEntitlement(db, ctx.user, 'engine', { engine: lab.engine });
     let accessCode;
     db.tx(() => {
-      db.run(`UPDATE labs SET engine = ?, template = ?, title = ?, description = ?, outcomes = ?, instructions = ?, config = ?, visibility = ?, updated_at = ? WHERE id = ?`,
-        lab.engine, lab.template, lab.title, lab.description, lab.outcomes, lab.instructions, JSON.stringify(lab.config), lab.visibility, nowIso(), l.id);
+      db.run(`UPDATE labs SET engine = ?, template = ?, title = ?, description = ?, outcomes = ?, instructions = ?, config = ?, quiz = ?, visibility = ?, updated_at = ? WHERE id = ?`,
+        lab.engine, lab.template, lab.title, lab.description, lab.outcomes, lab.instructions, JSON.stringify(lab.config), JSON.stringify(lab.quiz), lab.visibility, nowIso(), l.id);
       if (lab.visibility === 'private' && (ctx.body.accessCode || !db.get('SELECT 1 FROM lab_access WHERE lab_id = ?', l.id))) accessCode = setAccessCode(db, l.id, ctx.body.accessCode);
       if (lab.visibility === 'public') db.run('DELETE FROM lab_access WHERE lab_id = ?', l.id);
     });
@@ -219,12 +242,33 @@ export default function register(r, { db, limit, lockout }) {
     try { return { run: engine.simulate(l.template, config, { temperature: b.temperature }) }; } catch (e) { fail(400, e.message); }
   });
 
+  // ----- Quiz -----
+  // Graded on the server so the answer key never reaches students before they submit.
+  r.post('labs/:id/quiz', ctx => {
+    const user = ctx.requireUser();
+    limit('quiz', user.id, 60, 3600000, 'Too many quiz attempts. Please wait a little.');
+    const l = viewable(ctx, ctx.params.id), quiz = l.quiz ? JSON.parse(l.quiz) : [];
+    if (!quiz.length) fail(404, 'This lab has no quiz.');
+    const answers = ctx.body.answers;
+    if (!Array.isArray(answers) || answers.length !== quiz.length || answers.some((a, i) => !Number.isInteger(a) || a < 0 || a >= quiz[i].choices.length))
+      fail(400, 'Answer every question before submitting.');
+    const results = quiz.map((item, i) => ({ chosen: answers[i], answer: item.answer, correct: answers[i] === item.answer, explain: item.explain }));
+    const score = results.filter(x => x.correct).length;
+    db.run('INSERT INTO quiz_attempts (user_id, lab_id, lab_version, score, total, answers, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      user.id, l.id, l.version, score, quiz.length, JSON.stringify(answers), nowIso());
+    const best = db.get('SELECT MAX(score) AS best, COUNT(*) AS tries FROM quiz_attempts WHERE user_id = ? AND lab_id = ?', user.id, l.id);
+    return { score, total: quiz.length, results, best: best.best, tries: best.tries };
+  });
+
   // ----- Practice -----
   r.get('practice', ctx => {
     const user = ctx.requireUser();
-    return db.all('SELECT * FROM progress WHERE user_id = ? ORDER BY started_at', user.id).map(p => ({
+    return db.all(`SELECT p.*, (SELECT MAX(score) FROM quiz_attempts q WHERE q.user_id = p.user_id AND q.lab_id = p.lab_id) AS quiz_best,
+        (SELECT total FROM quiz_attempts q WHERE q.user_id = p.user_id AND q.lab_id = p.lab_id ORDER BY id DESC LIMIT 1) AS quiz_total
+      FROM progress p WHERE p.user_id = ? ORDER BY p.started_at`, user.id).map(p => ({
       userId: p.user_id, labId: p.lab_id, labVersion: p.lab_version, title: p.title, startedAt: p.started_at,
-      attempts: p.attempts, last: p.last ? JSON.parse(p.last) : undefined, solvedAt: p.solved_at || undefined
+      attempts: p.attempts, last: p.last ? JSON.parse(p.last) : undefined, solvedAt: p.solved_at || undefined,
+      ...(p.quiz_total ? { quiz: { best: p.quiz_best, total: p.quiz_total } } : {})
     }));
   });
 

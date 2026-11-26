@@ -2,7 +2,7 @@
 
 ## Runtime
 
-- **Client:** React 18 + Vite, three.js r128 for the 3D lab rooms, a 2D SVG bench for chemistry.
+- **Client:** React 18 + Vite, three.js r128 for the 3D lab rooms (circuits in `src/lab/scene3d.js`, chemistry in `src/chem/chemScene3d.js`, with a 2D diagram fallback).
 - **Server:** one Node HTTP handler, `createPlatformHandler(directory)` in `server/platform.mjs`, mounted as Vite middleware in development and preview, and by `server/start.mjs` for the built app. A small router (`server/router.mjs`) dispatches to modules in `server/routes/`.
 - **Storage:** SQLite through Node's built-in `node:sqlite` (`server/db.mjs`).
   - *Why not better-sqlite3:* it needs a native build or a prebuilt download, which fails on Windows machines without build tools or behind TLS-inspecting networks. `node:sqlite` ships with Node 22.13+ and includes FTS5, which the RAG retriever needs. It is still marked experimental, so the server hides that one warning.
@@ -46,6 +46,8 @@ Lists, search, profiles, notifications, practice, Nour and the RAG retriever all
 | `invoice_requests` | Organization invoice requests |
 | `checkouts`, `webhook_events` | Payment attempts and processed provider events (idempotency) |
 | `rag_chunks`, `rag_fts`, `embed_cache` | RAG index (Phase 8) |
+| `media` | Uploaded images (avatars, lab thumbnails) as BLOBs with a sniffed MIME type; `users.avatar_id` and `labs.thumbnail_id` point here |
+| `labs.quiz`, `quiz_attempts` | Creator quiz as JSON (answers stripped for non-owners) and every graded attempt with its score |
 
 ## Entitlements
 

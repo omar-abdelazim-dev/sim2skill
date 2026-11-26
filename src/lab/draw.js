@@ -3,7 +3,8 @@ import { S, rt, shown, scopeP } from './store.js';
 const {PARTS, EXPERIMENTS, partLabel, fmtI, fmtV, fmtT} = CORE;
 
 const BAND = ['#1A1A1A','#7A4A21','#D0312D','#E8731A','#F2C200','#2E9E4F','#2B63C9','#7F4FBF','#8C8C8C','#FFFFFF'];
-export function bands(ohms){ const e = Math.floor(Math.log10(ohms)) - 1, two = Math.round(ohms / Math.pow(10, e)); return [BAND[Math.floor(two / 10)], BAND[two % 10], BAND[e]]; }
+// Two significant digits and a multiplier. Below 10 Ω the multiplier band is gold (×0.1).
+export function bands(ohms){ let e = Math.floor(Math.log10(ohms)) - 1, two = Math.round(ohms / Math.pow(10, e)); if (two >= 100) { two = Math.round(two / 10); e += 1; } return [BAND[Math.floor(two / 10)], BAND[two % 10], e < 0 ? '#C9A227' : BAND[e]]; }
 
 // Draws the scope grid and trace into any 2D context, inside the rectangle x0,y0,w,h.
 export function plotScope(g, x0, y0, w, h, c, fs, sc){
@@ -43,14 +44,14 @@ export function benchSVG(){
   s += `<line class="wire" x1="78" y1="${T}" x2="${S.closed ? 128 : 122}" y2="${S.closed ? T : 34}"/><circle cx="78" cy="${T}" r="4" fill="var(--ink)"/><circle cx="128" cy="${T}" r="4" fill="var(--ink)"/>`;
   s += `<text class="st2" x="103" y="78" text-anchor="middle">${S.closed ? 'closed' : 'open'}</text>`;
   s += `<rect class="hit" id="hit-sw" x="66" y="22" width="74" height="60" rx="8" tabindex="0" role="button" data-act="sw" aria-label="${S.closed ? 'Open' : 'Close'} the switch"/>`;
-  const rp = b.R ? PARTS[b.R] : null;
+  const rp = b.R ? CORE.effective(b.R, b, 'R') : null;
   if (!rp) s += `<rect class="slot-empty" x="164" y="34" width="112" height="44" rx="8"/><text class="st" x="220" y="54" text-anchor="middle">Resistor</text><text class="st2" x="220" y="69" text-anchor="middle">empty slot</text>`;
   else if (rp.kind === 'wire') s += `<path class="wire" d="M160 ${T} H280"/><text class="stm" x="220" y="44" text-anchor="middle">wire</text>`;
-  else s += `<path class="wire" d="M160 ${T} H190 M250 ${T} H280"/>${resistorG(190, 45, 60, 22, rp.ohms)}<text class="stm" x="220" y="32" text-anchor="middle">${partLabel(b.R)}</text>`;
+  else s += `<path class="wire" d="M160 ${T} H190 M250 ${T} H280"/>${resistorG(190, 45, 60, 22, rp.ohms)}<text class="stm" x="220" y="32" text-anchor="middle">${CORE.partText(b.R, b, 'R')}</text>`;
   if (S.active === 'R') s += `<rect class="slot-active" x="154" y="14" width="132" height="72" rx="10"/>`;
-  s += `<rect class="hit" id="hit-R" x="156" y="16" width="128" height="68" rx="8" tabindex="0" role="button" data-act="slot" data-id="R" aria-label="Resistor slot: ${rp ? partLabel(b.R) : 'empty'}"/>`;
+  s += `<rect class="hit" id="hit-R" x="156" y="16" width="128" height="68" rx="8" tabindex="0" role="button" data-act="slot" data-id="R" aria-label="Resistor slot: ${rp ? CORE.partText(b.R, b, 'R') : 'empty'}"/>`;
   if (hasD) {
-    const dp = b.D ? PARTS[b.D] : null, name = E.slots[1].name;
+    const dp = b.D ? CORE.effective(b.D, b, 'D') : null, name = E.slots[1].name;
     if (!dp) s += `<rect class="slot-empty" x="326" y="102" width="60" height="88" rx="8"/><text class="st2" x="356" y="143" text-anchor="middle" style="font-size:12px;fill:var(--ink)">${name}</text><text class="st2" x="356" y="158" text-anchor="middle">empty</text>`;
     else if (dp.kind === 'led') {
       const lit = S.closed && sim && sim.lit && !b.burnt;

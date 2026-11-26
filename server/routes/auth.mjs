@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { fail, nowIso, hashSecret, verifySecret, getPlan } from '../lib.mjs';
 import { limitsForJson } from '../../shared/plans.js';
 
-export const publicUser = u => u && { id: u.id, name: u.name, bio: u.bio || '' };
+export const mediaUrl = id => (id ? '/api/media/' + id : null);
+export const publicUser = u => u && { id: u.id, name: u.name, bio: u.bio || '', avatar: mediaUrl(u.avatar_id) };
 
 export function selfUser(db, u) {
   if (!u) return null;

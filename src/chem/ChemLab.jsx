@@ -1,11 +1,36 @@
-// Chemistry bench: a 2D SVG lab for titration and kinetics. The server runs the simulation because the
-// unknown (concentration, Ea) must never reach the browser; this view only draws and records.
+// Chemistry bench: a walkable 3D lab room (chemScene3d.js) for titration and kinetics, with a 2D diagram as
+// fallback. The server runs the simulation because the unknown (concentration, Ea) must never reach the
+// browser; this view only draws and records.
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../platform/api.js';
 import { askNour, nourMode, onNourMode } from '../nour.js';
 import { REAGENTS, INDICATORS, indicatorColor, hint as tHint, labContext as tContext } from '../../shared/engines/titration.js';
 import { REACTIONS, fitLine, transform, hint as kHint, labContext as kContext } from '../../shared/engines/kinetics.js';
+import { createChemLab3D, hasWebGL } from './chemScene3d.js';
+import { QuizDialog } from '../platform/Quiz.jsx';
 import './chem.css';
+
+const WEBGL = typeof document !== 'undefined' && hasWebGL();
+
+// ---------- The 3D room ----------
+// Mounts the scene once per lab; later renders only push new state. Clicks in the room call onAction.
+function ChemStage({ kind, config, state, onAction, mode, hud, hint, onFailure }) {
+  const host = useRef(null), room = useRef(null), act = useRef(onAction);
+  act.current = onAction;
+  useEffect(() => {
+    try { room.current = createChemLab3D(host.current, { kind, config, indicators: INDICATORS, onAction: a => act.current(a) }); }
+    catch (e) { console.error('3D chemistry room failed:', e); onFailure(); return; }
+    return () => { room.current?.destroy(); room.current = null; };
+  }, []);
+  useEffect(() => { room.current?.setMode(mode); }, [mode]);
+  useEffect(() => { room.current?.update(state); });
+  return <section className="chem-stage" aria-label="3D lab room">
+    <div className="chem-stage-host" ref={host} />
+    <div className="chem-hud">{hud}</div>
+    <p className="chem-stage-hint">{mode === 'walk' ? 'W A S D to walk · drag to look · click equipment to use it' : hint}</p>
+  </section>;
+}
+const Chip = ({ k, v, tone }) => <div className={'chem-chip' + (tone ? ' ' + tone : '')}><span>{k}</span><b>{v}</b></div>;
 
 const fmt = (x, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : '—');
 
@@ -63,7 +88,7 @@ function ChemNour({ lab, context, offline }) {
 }
 
 // ---------- Titration ----------
-function Titration({ lab, onSaved }) {
+function Titration({ lab, onSaved, mode, onNo3D }) {
   const c = lab.config, a = REAGENTS[c.analyte], t = REAGENTS[c.titrant];
   const [rinsed, setRinsed] = useState(null), [indicator, setIndicator] = useState(''), [points, setPoints] = useState([]);
   const [endpoint, setEndpoint] = useState(null), [answer, setAnswer] = useState(''), [result, setResult] = useState(null), [level, setLevel] = useState(0), [error, setError] = useState(''), [busy, setBusy] = useState(false);
@@ -91,6 +116,19 @@ function Titration({ lab, onSaved }) {
     } catch (err) { setError(err.message); }
   }
   const color = pH === null || !indicator ? 'rgba(220,235,245,.25)' : indicatorColor(indicator, pH);
+  const [notice, setNotice] = useState('');
+  function onAction(a) {
+    setNotice('');
+    const started = points.length > 0;
+    if ((a.type === 'rinse' || a.type === 'fill' || a.type === 'indicator') && started) return setNotice('The burette and indicator are fixed once you start. Empty the flask to start again.');
+    if (a.type === 'rinse') setRinsed(true);
+    else if (a.type === 'fill') setRinsed(false);
+    else if (a.type === 'indicator') setIndicator(a.id);
+    else if (a.type === 'add') { if (!ready) setNotice(rinsed === null ? 'Prepare the burette first: rinse and fill it, or fill it straight away.' : 'Choose an indicator from the bottles first.'); else add(a.dv); }
+    else if (a.type === 'record') { if (started) setEndpoint(volume); else setNotice('Add titrant before recording an endpoint.'); }
+  }
+  const stage = { volume, pH, rinsed, indicator, endpoint, ready: !!ready, points, liquid: pH !== null && indicator ? indicatorColor(indicator, pH) : null,
+    titrantName: t.name, titrantFormula: t.formula, titrantConc: c.titrantConc, indicatorNames: Object.fromEntries(c.indicators.map(i => [i, INDICATORS[i].name])) };
   const level01 = Math.max(0, 1 - volume / c.burette);
   const context = () => ({ title: lab.title, goal: lab.goal, concept: 'Acid–base titration', instructions: lab.instructions,
     state: tContext(c, { burette_rinsed_with_titrant: rinsed, indicator: indicator ? INDICATORS[indicator].name : null, volume_added_mL: volume, current_pH: pH, endpoint_recorded_mL: endpoint,
@@ -100,8 +138,12 @@ function Titration({ lab, onSaved }) {
       : !indicator ? 'Choose an indicator whose colour change falls in the steep jump of the curve at the equivalence point.'
         : endpoint === null ? 'Add titrant in big steps first, then drop by drop near the colour change. Record the first permanent change.'
           : 'Now calculate: moles of titrant = c × V(L), apply the reaction ratio, divide by the aliquot volume, then undo the dilution.';
-  return <div className="chem-layout">
-    <section className="chem-panel chem-bench" aria-label="Titration bench">
+  return <>{mode !== '2d' && <ChemStage kind="titration" config={c} state={stage} onAction={onAction} mode={mode} onFailure={onNo3D}
+      hint="Drag to look around · click the wash bottle, an indicator, then the stopcock (hold to stream)"
+      hud={<><Chip k="Added" v={`${fmt(volume)} mL`} tone="meter" /><Chip k="pH" v={pH === null ? '—' : fmt(pH)} /><Chip k="Indicator" v={indicator ? INDICATORS[indicator].name : 'none'} /><Chip k="Endpoint" v={endpoint === null ? '—' : `${fmt(endpoint)} mL`} tone={endpoint === null ? '' : 'good'} />
+        {notice && <div className="chem-stage-notice" role="status">{notice}</div>}</>} />}
+    <div className={'chem-layout' + (mode !== '2d' ? ' with-stage' : '')}>
+    {mode === '2d' && <section className="chem-panel chem-bench" aria-label="Titration bench">
       <svg viewBox="0 0 260 420" className="chem-apparatus" role="img" aria-label={`Burette with ${fmt(volume)} mL added; flask colour from ${indicator ? INDICATORS[indicator].name : 'no indicator'}`}>
         <rect x="118" y="10" width="24" height="250" rx="4" className="glass" />
         <rect x="120" y={12 + (1 - level01) * 246} width="20" height={level01 * 246} className="titrant" />
@@ -113,7 +155,7 @@ function Titration({ lab, onSaved }) {
         <path d="M70 372 L190 372 L203 398 Q207 408 196 408 L64 408 Q53 408 57 398 Z" className="flask-water" /><path d="M70 372 L190 372 L203 398 Q207 408 196 408 L64 408 Q53 408 57 398 Z" fill={color} className="flask-liquid" />
       </svg>
       <div className="chem-readout"><span>Added <b>{fmt(volume)}</b> mL</span><span>pH <b>{pH === null ? '—' : fmt(pH)}</b></span></div>
-    </section>
+    </section>}
     <section className="chem-panel chem-steps">
       <h2>1. Prepare the burette</h2>
       <div className="chem-row">
@@ -145,12 +187,12 @@ function Titration({ lab, onSaved }) {
       {indicator && <p className="platform-help">{INDICATORS[indicator].name} changes colour between pH {INDICATORS[indicator].low} and {INDICATORS[indicator].high}.</p>}
     </section>
     <ChemNour lab={lab} context={context} offline={offline} />
-  </div>;
+  </div></>;
 }
 
 // ---------- Kinetics ----------
 const RUN_COLORS = ['#8fd3ff', '#f2c94c', '#f08a6c', '#9be38f', '#c7a6ff', '#ff9ed0'];
-function Kinetics({ lab, onSaved }) {
+function Kinetics({ lab, onSaved, mode, onNo3D }) {
   const c = lab.config, rx = REACTIONS[c.reaction];
   const [runs, setRuns] = useState({}), [plot, setPlot] = useState(1), [order, setOrder] = useState(''), [ea, setEa] = useState('');
   const [kelvin, setKelvin] = useState(true), [natural, setNatural] = useState(true), [result, setResult] = useState(null), [level, setLevel] = useState(0), [error, setError] = useState(''), [busy, setBusy] = useState(0);
@@ -165,6 +207,8 @@ function Kinetics({ lab, onSaved }) {
   const arr = ks.filter(p => p.k > 0).map(p => [1 / (p.T + (kelvin ? 273.15 : 0)), natural ? Math.log(p.k) : Math.log10(p.k)]);
   const arrFit = arr.length >= 2 ? fitLine(arr.map(p => p[0]), arr.map(p => p[1])) : null;
   const yName = ['[A] (mol/L)', 'ln [A]', '1/[A] (L/mol)'][plot];
+  const onAction = a => { if (a.type === 'run' && !busy) runAt(a.T); };
+  const stage = { runs, busy, yName, series: series.map(s => ({ name: s.name, color: s.color, points: s.points })), reactionShort: rx.species + ' stock' };
   async function submit(e) {
     e.preventDefault(); setError('');
     const bench = { runs: temps, order: order === '' ? null : Number(order), eaKJ: ea === '' ? null : Number(ea) };
@@ -179,7 +223,10 @@ function Kinetics({ lab, onSaved }) {
   const offline = () => result && !result.success ? kHint(result.diagnosis, Math.min(3, level + 1))
     : temps.length < 2 ? 'Run the reaction at two or more temperatures first: Ea comes from how k changes with temperature.'
       : 'Switch between the three plots and look at R². The straight one tells you the order; its slope gives k.';
-  return <div className="chem-layout">
+  return <>{mode !== '2d' && <ChemStage kind="kinetics" config={c} state={stage} onAction={onAction} mode={mode} onFailure={onNo3D}
+      hint="Drag to look around · click a water bath to run the reaction at that temperature"
+      hud={<><Chip k="Runs" v={`${temps.length} / ${c.temperatures.length}`} tone="meter" /><Chip k="Plot" v={yName} />{fits.length > 0 && <Chip k="Best R²" v={Math.max(...fits.map(f => f.r2)).toFixed(4)} />}</>} />}
+    <div className={'chem-layout' + (mode !== '2d' ? ' with-stage' : '')}>
     <section className="chem-panel chem-steps">
       <h2>1. Run the reaction</h2><p className="platform-help">{rx.equation} · tracking {rx.species} · starting at {c.c0} mol/L</p>
       <div className="chem-row">{c.temperatures.map(T => <button key={T} type="button" className={runs[T] ? 'home-primary' : 'home-outline'} disabled={!!busy} onClick={() => runAt(T)}>{busy === T ? 'Running…' : `Run at ${T} °C`}</button>)}</div>
@@ -202,17 +249,24 @@ function Kinetics({ lab, onSaved }) {
       <Chart series={[{ name: 'k', color: '#f2c94c', points: arr }]} fits={arrFit ? [{ ...arrFit, color: '#f2c94c' }] : []} xLabel={`1/T (${kelvin ? 'K⁻¹' : '°C⁻¹'})`} yLabel={natural ? 'ln k' : 'log k'} height={200} />
     </section>
     <ChemNour lab={lab} context={context} offline={offline} />
-  </div>;
+  </div></>;
 }
 
 export default function ChemLab({ lab, onBack, onSaved }) {
   const Bench = lab.engine === 'titration' ? Titration : Kinetics;
-  const [showInfo, setShowInfo] = useState(false);
+  const [showInfo, setShowInfo] = useState(false), [showQuiz, setShowQuiz] = useState(false), [mode, setMode] = useState(WEBGL ? 'orbit' : '2d'), [no3D, setNo3D] = useState(!WEBGL);
+  const views = [['orbit', '3D room'], ['walk', 'Walk'], ['2d', 'Diagram']].filter(([m]) => m === '2d' || !no3D);
   return <main className="platform-page chem-page">
     <div className="chem-top"><button type="button" className="platform-text" onClick={onBack}>← Back to lab details</button>
       <div><div className="section-kicker">CHEMISTRY · {lab.engine === 'titration' ? 'TITRATION' : 'KINETICS'}</div><h1>{lab.title}</h1><p>{lab.goal}</p></div>
-      <button type="button" className="home-outline" aria-expanded={showInfo} onClick={() => setShowInfo(!showInfo)}>Lab instructions</button></div>
+      <div className="chem-actions">
+        <div className="chem-views" role="radiogroup" aria-label="View">{views.map(([m, label]) => <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}>{label}</button>)}</div>
+        <button type="button" className="home-outline" aria-expanded={showInfo} onClick={() => setShowInfo(!showInfo)}>Lab instructions</button>
+        {lab.quiz?.length > 0 && <button type="button" className="home-primary" onClick={() => setShowQuiz(true)}>Take the quiz</button>}
+      </div></div>
+    {no3D && WEBGL && <p className="platform-help">The 3D room could not start on this device, so the lab is shown as a diagram.</p>}
     {showInfo && <section className="chem-panel"><h2>Learning outcomes</h2><p className="preserve-lines">{lab.outcomes}</p><h2>Instructions</h2><p className="preserve-lines">{lab.instructions}</p></section>}
-    <Bench lab={lab} onSaved={onSaved} />
+    <Bench lab={lab} onSaved={onSaved} mode={mode} onNo3D={() => { setNo3D(true); setMode('2d'); }} />
+    {showQuiz && <QuizDialog lab={lab} onClose={() => setShowQuiz(false)} />}
   </main>;
 }

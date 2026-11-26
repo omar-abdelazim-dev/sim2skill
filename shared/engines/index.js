@@ -7,7 +7,8 @@
 //   checkPublishable(template, config, solution)  throws if the lab cannot be solved safely
 //   evaluate(template, config, bench) server-side grading: { result, diagnosis, success }
 //   invariants(template, config, bench)  physical laws that must hold; returns a list of violations
-import { BASE, defaultConfig, validateConfig, buildDefinition, runConfigured, findSolution } from '../labConfig.js';
+import CORE from '../../src/lab/core.js';
+import { BASE, defaultConfig, validateConfig, buildDefinition, runConfigured, findSolution, valueAllowed } from '../labConfig.js';
 import { titration } from './titration.js';
 import { kinetics } from './kinetics.js';
 import { equilibrium, electrochemistry, spectroscopy } from './stubs.js';
@@ -27,7 +28,10 @@ const circuits = {
     const ok = b && Number.isFinite(b.V) && b.V >= (e.volt.min || e.volt.fixed) && b.V <= (e.volt.max || e.volt.fixed)
       && e.slots.every(s => b[s.id] === null || b[s.id] === undefined || s.options.includes(b[s.id]))
       && typeof b.reversed === 'boolean' && typeof b.burnt === 'boolean'
-      && (b.pot === undefined || (Number.isFinite(b.pot) && b.pot >= 100 && b.pot <= 10000));
+      && (b.pot === undefined || (Number.isFinite(b.pot) && b.pot >= CORE.PARTS.pot.min && b.pot <= CORE.PARTS.pot.max))
+      && (b.values === undefined || (typeof b.values === 'object' && b.values !== null && !Array.isArray(b.values)
+        && Object.entries(b.values).every(([slot, v]) => e.slots.some(s => s.id === slot) && Number.isFinite(v)
+          && (!CORE.PARTS[b[slot]]?.variable || valueAllowed(b[slot], v, e.rounding)))));
     if (!ok) throw Error('Invalid circuit configuration.');
   },
   evaluate: (template, config, bench) => runConfigured(template, config, bench),

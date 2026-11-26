@@ -1,6 +1,6 @@
 # Sim2Skill (React)
 
-Home: three accessible experiment cards beside a dedicated chat with Nour. A compact introduction, clear objectives, estimated experiment times, and direct lab entry help students get started. The optional **Explore the lab gallery** panel retains the animated 3D ring without covering the chat or the experiments. The page scrolls naturally and stacks on narrow screens; no simulated loading intro is required.
+Home: a bright, sans-serif design (Geist) with a hero, quick stats and three accessible experiment cards. Nour, the lab instructor, is a pop-up chat in the bottom-right corner of every page outside the labs (the labs have their own Nour). The **Browse labs** page filters by subject (**All labs / Physics / Chemistry**), with search and sorting. Sign-in is a plain two-column page.
 
 ## Run it
 ```
@@ -15,12 +15,16 @@ Open the built site through a server (`npm run preview`), not by double-clicking
 | Path | What it is |
 | --- | --- |
 | `src/App.jsx` | Nav, routing (#home, #lab, #dashboard), role-aware navigation and lab entry |
-| `src/home/Home.jsx` | Homepage introduction, experiment cards, instructor panel, optional gallery |
+| `src/home/Home.jsx` | Homepage introduction, stats and experiment cards |
+| `src/home/NourWidget.jsx` | Nour's pop-up chat in the page corner (`openNour()` opens it from anywhere) |
 | `src/home/home.css` | Responsive homepage styles |
 | `src/home/guide.js` | Offline lab routing and roadmap answers |
 | `src/home/Ring.jsx` | The ring of lab cards: geometry, spin, drag, wheel, hover tilt |
 | `src/home/CardFace.jsx` | Drawn previews for each lab card |
 | `src/home/Chat.jsx` | Chat with Nour: Claude when available, keyword answers otherwise |
+| `src/chem/chemScene3d.js` | The three.js chemistry room: titration rig and kinetics baths, Orbit and Walk views |
+| `src/platform/Quiz.jsx` | Quiz editor for creators and the quiz player for students |
+| `src/theme.css` | The bright theme layer (loaded last); colour tokens live in `src/styles.css` |
 | `src/labs.js` | The lab list (7 live, 7 coming soon) |
 | `src/lab/core.js` | Simulator, mistake detector, hint ladder |
 | `src/lab/store.js` | Lab state and actions shared by React and the 3D scene |
@@ -28,7 +32,7 @@ Open the built site through a server (`npm run preview`), not by double-clicking
 | `src/lab/LabView.jsx`, `Dashboard.jsx` | Lab panels and the instructor dashboard |
 
 ## The chat's AI
-You can chat with Nour on the home page and inside every lab (the box under her messages). Both
+You can chat with Nour from the pop-up in the page corner and inside every lab (the box under her messages). Both
 chats go through `src/nour.js`, which tries three sources in order:
 
 1. **Claude inside claude.ai**: the artifact's `sample` capability.
@@ -62,7 +66,9 @@ There are no student or tutor roles any more: **every account can practise and c
 2. **Private** labs get an 8-character access code (or your own 6–64 character password). It is shown once; the studio can make a new one, remove everyone's access, and list who has access.
 3. **Submit** publishes a new immutable version. Practice records point at the version the student used. **Unpublish** returns the lab to drafts for editing.
    A fresh database includes a demo private lab: open `#details/demo-private` and enter **DEMO2026**.
-4. Anyone signed in can **report** a lab. Admins review reports at `#admin` and can take a lab down (the creator is notified) or restore it.
+4. **Quiz (optional):** add up to 20 multiple-choice questions in the builder's **Quiz** tab (circuits) or the **Quiz** panel (chemistry). Students take it from the lab details page or with **Take the quiz** inside the lab. The answer key never reaches students: answers are graded on the server (`POST /api/labs/:id/quiz`), each question then shows the creator's explanation, and the best score appears in **My practice**. Built-in labs come with a starter quiz.
+5. **Pictures:** upload a lab thumbnail from the studio card or the lab details page, and a profile picture from **Edit profile**. Images are resized in the browser, checked by their real file type on the server (PNG, JPEG or WebP, under 900 KB) and stored in SQLite (`media` table).
+6. Anyone signed in can **report** a lab. Admins review reports at `#admin` and can take a lab down (the creator is notified) or restore it.
 
 ### Following and notifications
 
@@ -111,6 +117,10 @@ Every model call goes through LangChain.js on the server (`server/llm/`), with t
 Data lives in SQLite at `.data/platform.db` (git-ignored) with versioned migrations in `server/migrations/`. On first start, an old `.data/platform.json` is imported (password hashes unchanged) and renamed `platform.json.migrated`. Sessions persist across restarts; only a SHA-256 of each session token is stored. Passwords and access codes use scrypt with `timingSafeEqual`. Sign-in, access codes, reports, checkout and Nour are rate limited per user (or per IP when signed out); wrong access codes lock that lab for 15 minutes after 5 tries. Every route that returns or uses a lab applies the same visibility rule on the server (`VISIBLE_SQL` in `server/lib.mjs`). See `docs/architecture.md` for the schema.
 
 ## Circuit builder and expanded electronics
+
+**Resistor values.** Labs offer real standard resistors by default. Two variable parts are also available, and each slot keeps its own value (`bench.values.R` / `bench.values.D`):
+- **Adjustable resistor** (10 Ω–100 kΩ): a logarithmic slider plus a box to type an exact value. Available in every resistor slot, including R2 in series, parallel and divider labs.
+- **Custom resistor** (1 Ω–1 MΩ): creator-only, off in built-in labs. Turn it on in **Stock the component shelf**. Students type values like `470`, `4.7k`, `4k7` or `1M`. The lab's **Custom resistor values** setting can use the exact value or round it to the nearest E12 or E24 part (500 Ω becomes 470 Ω in E12, and the student is told why). The server only accepts standard values when rounding is on, and the publish check solves for variable parts under the same rule.
 
 The tutor studio includes **Circuit & components**, **Teaching content**, and **Test your lab** tabs. In the sandbox, click a slot and a component or drag a part onto a compatible slot. Change the test supply, flip polarized parts, adjust variable resistance, run a measurement, reset the test, or choose **Use as starting circuit**. Save your draft to persist it. Testing a solution does not silently change the saved starter. Saving validates the configuration; publication additionally rejects configurations for which the solver cannot find a safe solution using the permitted parts and supply controls.
 

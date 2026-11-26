@@ -15,6 +15,8 @@ import socialRoutes from './routes/social.mjs';
 import adminRoutes from './routes/admin.mjs';
 import billingRoutes from './routes/billing.mjs';
 import nourRoutes from './routes/nour.mjs';
+import mediaRoutes from './routes/media.mjs';
+import { BUILTIN_QUIZZES } from './builtinQuizzes.mjs';
 import { indexMissing } from './llm/rag.mjs';
 
 const ENV_KEYS = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'DEMO_MODE', 'PAYMENT_PROVIDER', 'ADMIN_EMAILS', 'COOKIE_SECURE', 'MOCK_WEBHOOK_SECRET'];
@@ -64,6 +66,8 @@ function seed(db) {
               VALUES (?, 'sim2skill', ?, ?, ?, ?, ?, ?, ?, 'published', 'public', 1, 1, ?, ?)`,
         lab.id, lab.engine, lab.id, lab.title, lab.description, lab.outcomes, lab.instructions, JSON.stringify(config), now, now);
     }
+    for (const [id, quiz] of Object.entries(BUILTIN_QUIZZES))
+      db.run('UPDATE labs SET quiz = ? WHERE id = ? AND builtin = 1 AND quiz IS NULL', JSON.stringify(quiz), id);
     // Demo private lab with a known test code, so the private-lab flow works on a fresh database.
     if (!db.get(`SELECT 1 FROM labs WHERE id = 'demo-private'`)) {
       db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, status, visibility, builtin, version, first_published_at, created_at)
@@ -87,7 +91,7 @@ export async function createPlatformHandler(directory = process.env.DATA_DIR || 
 
   const router = createRouter();
   const deps = { db, limit: createLimiter(), lockout: createLockout(), CORE };
-  for (const register of [authRoutes, labRoutes, socialRoutes, adminRoutes, billingRoutes, nourRoutes]) register(router, deps);
+  for (const register of [authRoutes, labRoutes, socialRoutes, adminRoutes, billingRoutes, nourRoutes, mediaRoutes]) register(router, deps);
 
   const adminEmails = () => (process.env.ADMIN_EMAILS || '').toLowerCase().split(',').map(s => s.trim()).filter(Boolean);
 

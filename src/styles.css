@@ -1,19 +1,20 @@
 @import './lab.css';
 
 :root{
-  /* One dark world: a night lab. Blue for interface accents, multimeter yellow for live readings.
-     Layout: a nav, a serif sentence + stats, then a rounded frame holding the lab ring with Nour's chat at its centre. */
-  --paper:#0A0E11; --paper-deep:#111920; --surface:#141C22; --ink:#EEF4F6; --ink-soft:#9FB4BF; --ink-muted:#647C8A;
-  --line-c:rgba(238,244,246,.14); --accent:#3AA8D0; --btn:#1E86AC; --btn-hover:#2597C0; --aqua:#9ED8E4; --night:#05090C;
-  --meter:#F2B705; --meter-strong:#FFD34D; --meter-ink:#1B1500; --flow:#FFD34D;
+  /* A bright, warm lab: paper-white surfaces, slate ink, and multimeter gold for actions and live readings.
+     Instrument displays (readouts, scopes, the 3D lab's wall screens) stay dark, like real equipment. */
+  --paper:#FBFAF6; --paper-deep:#F3F0E7; --surface:#FFFFFF; --ink:#1B252B; --ink-soft:#4E5E67; --ink-muted:#7A8890;
+  --line-c:rgba(27,37,43,.12); --accent:#B7790B; --btn:#F2B705; --btn-hover:#FFC933; --aqua:#2C7A8C; --night:#1B252B;
+  --meter:#E8A90C; --meter-strong:#F2B705; --meter-ink:#231A00; --meter-text:#8F6200; --flow:#F2B705;
+  --gold-soft:#FFF4D1; --gold-line:#F0D78A; --shadow-sm:0 1px 2px rgba(27,37,43,.06),0 2px 8px rgba(27,37,43,.05); --shadow-md:0 2px 6px rgba(27,37,43,.05),0 12px 32px rgba(27,37,43,.08);
   /* tokens the lab panels use */
-  --bg:var(--paper); --ink-2:var(--ink-soft); --line:var(--line-c); --surface-2:#111920; --grid:#17222A;
-  --good:#4CC38A; --warn:#F0A840; --crit:#F0766C; --inst-bg:#091216; --inst-ink:#E8F0F2; --inst-dim:#8FA6B0; --inst-line:#24383F; --part-body:#C9A979;
-  --serif:"Newsreader",Georgia,serif; --mono:"Geist Mono",ui-monospace,monospace; --sans:"Geist",system-ui,sans-serif;
-  --font-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif; --font-body:var(--sans); --font-mono:"IBM Plex Mono",ui-monospace,monospace;
+  --bg:var(--paper); --ink-2:var(--ink-soft); --line:var(--line-c); --surface-2:#F6F4EE; --grid:#ECE8DE;
+  --good:#1E8A5A; --warn:#C27A0E; --crit:#C8443A; --inst-bg:#16232A; --inst-ink:#EEF4F6; --inst-dim:#9FB4BF; --inst-line:#2C3F48; --part-body:#C9A979;
+  --serif:"Geist",system-ui,sans-serif; --mono:"Geist Mono",ui-monospace,monospace; --sans:"Geist",system-ui,sans-serif;
+  --font-display:"Geist",system-ui,sans-serif; --font-body:var(--sans); --font-mono:"IBM Plex Mono",ui-monospace,monospace;
   --ease:cubic-bezier(.22,1,.36,1);
   --u:calc(min(100vw, 160svh) / 1440);
-  color-scheme:dark;
+  color-scheme:light;
 }
 @media (max-width:820px){:root{--u:calc(100vw / 390)}}
 *{box-sizing:border-box}

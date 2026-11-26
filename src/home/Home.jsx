@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import Chat from './Chat.jsx';
+import { useEffect } from 'react';
 import CardFace from './CardFace.jsx';
-import CorridorBackdrop from './CorridorBackdrop.jsx';
+import { openNour } from './NourWidget.jsx';
 import { LIVE } from '../labs.js';
 
 const DETAILS = {
@@ -10,19 +9,17 @@ const DETAILS = {
   rc: { topic: 'Energy & time', title: 'RC charging', time: '15 min', lesson: 'Watch a capacitor charge and discover what sets its pace.', task: 'Your target: 63% charge in 1 second', level: 'Try something new' }
 };
 
-export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef }) {
-  const chatRef = useRef(null);
+export default function Home({ onIntroDone, onOpenLab, transit }) {
   useEffect(() => { onIntroDone(); }, []);
-  const ask = () => { document.getElementById('nour-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); chatRef.current?.focus(); };
   return (<>
-    <CorridorBackdrop />
     <main className={'home-v2' + (transit ? ' is-opening' : '')}>
       <section className="home-intro" aria-labelledby="home-title">
         <div className="intro-copy">
           <div className="home-kicker"><span className="kicker-mark">✳</span> A LITTLE CURIOSITY GOES A LONG WAY</div>
-          <h1 id="home-title">Less memorizing.<br/>More <em>lightbulb moments.</em></h1>
-          <p>Your own electronics lab. Build, experiment, and learn from every mistake—with Nour by your side.</p>
-          <div className="intro-actions"><a className="home-primary" href="#experiments" onClick={e => {e.preventDefault();document.getElementById('experiments')?.scrollIntoView({behavior:'smooth',block:'start'});}}>Find an experiment</a><button className="home-text-button" onClick={ask}>Meet your lab instructor</button></div>
+          <h1 id="home-title">Less memorizing.<br/>More <em className="marker">lightbulb moments.</em></h1>
+          <p>Your own physics and chemistry lab. Build, experiment, and learn from every mistake—with Nour by your side.</p>
+          <div className="intro-actions"><a className="home-primary" href="#experiments" onClick={e => {e.preventDefault();document.getElementById('experiments')?.scrollIntoView({behavior:'smooth',block:'start'});}}>Find an experiment</a><button className="home-text-button" onClick={openNour}>Ask Nour, your lab instructor</button></div>
+          <ul className="hero-stats" aria-label="What you get"><li><b>{LIVE.length}</b><span>live labs</span></li><li><b>2</b><span>sciences</span></li><li><b>3D</b><span>walk-in rooms</span></li><li><b>24/7</b><span>help from Nour</span></li></ul>
         </div>
         <div className="learning-note">
           <div className="learning-note-top"><span className="note-icon">⌁</span><span>SMALL EXPERIMENTS.<br/>REAL UNDERSTANDING.</span></div>
@@ -43,10 +40,8 @@ export default function Home({ active, onIntroDone, onOpenLab, transit, ringRef 
           </div>
           <div className="bench-reassurance"><span className="reassurance-icon">✓</span><p>No equipment. No setup. Just you, a circuit, and a good question.</p></div>
         </div>
-        <aside className="instructor-section" id="nour-panel"><div className="home-section-head"><div><span className="section-kicker">A LITTLE GUIDANCE</span><h2>Never stuck for long.</h2></div></div><Chat ref={chatRef} onOpenLab={onOpenLab} disabled={!!transit}/></aside>
       </section>
 
-      <section className="explore-section" aria-label="Lab roadmap"><div className="explore-copy"><span className="explore-symbol" aria-hidden="true">⊞</span><div><h2>A whole world of “what if?”</h2><p>More physics experiments are on the way: circuits, mechanics and optics.</p></div></div><a className="home-outline" href="#explore">Walk the lab gallery →</a></section>
       <footer className="home-footer"><span>Sim2Skill <span className="footer-caption">· Learning through doing.</span></span><span>Built for curious minds. <span className="footer-spark">✳</span></span></footer>
     </main>
   </>);

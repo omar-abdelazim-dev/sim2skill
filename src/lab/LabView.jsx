@@ -5,6 +5,7 @@ import { benchSVG, partIcon, plotScope } from './draw.js';
 import { createLab3D } from './scene3d.js';
 import { askNour, nourMode, onNourMode } from '../nour.js';
 import CircuitBoard from './CircuitBoard.jsx';
+import { ResistanceControls } from './ResistanceControl.jsx';
 
 const { EXPERIMENTS, partLabel, fmtI, fmtV, fmtT } = CORE;
 
@@ -160,7 +161,7 @@ function Dock() {
           </button>
         ))}
       </div>
-      {(b.R==='pot'||b.D==='pot')&&<label className="pot-control">Adjustable resistance: {b.pot||1000} Ω<input aria-label="Adjustable resistance" type="range" min="100" max="10000" step="10" value={b.pot||1000} onChange={e=>ACT.pot(e.target.value)}/></label>}
+      <ResistanceControls slots={EXPERIMENTS[S.exp].slots} bench={b} rounding={EXPERIMENTS[S.exp].rounding} onChange={(slot,v)=>ACT.setValue(slot,v)}/>
       <div className="dock-row act">
         <button className={'power' + (S.closed ? ' on' : '')} type="button" onClick={() => ACT.sw()}><i />{S.closed ? 'Open switch' : 'Close switch'}</button>
         {!E.volt.fixed && (
@@ -205,7 +206,7 @@ function Kit({ parts, setParts }) {
           <button className="hbtn small ghosty" type="button" onClick={() => ACT.drop()}>Put back <kbd>Q</kbd></button>
         </>) : (<span className="kh-t"><b>Hands empty</b><span>Walk to the parts table beside the bench and pick a part up.</span></span>)}
       </div>
-      {(b.R==='pot'||b.D==='pot')&&<label className="pot-control">Adjustable resistance: {b.pot||1000} Ω<input aria-label="Adjustable resistance" type="range" min="100" max="10000" step="10" value={b.pot||1000} onChange={e=>ACT.pot(e.target.value)}/></label>}
+      <ResistanceControls slots={EXPERIMENTS[S.exp].slots} bench={b} rounding={EXPERIMENTS[S.exp].rounding} onChange={(slot,v)=>ACT.setValue(slot,v)}/>
       <div className="dock-row act">
         <button className={'power' + (S.closed ? ' on' : '')} type="button" onClick={() => ACT.sw()}><i />{S.closed ? 'Open switch' : 'Close switch'}</button>
         {!E.volt.fixed && (
