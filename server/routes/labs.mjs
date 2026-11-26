@@ -14,10 +14,11 @@ export function toLab(db, l, viewer) {
   try { goal = engineFor(l.engine).goal(l.template, config || undefined); } catch { goal = ''; }
   const author = db.get('SELECT id, name, bio FROM users WHERE id = ?', l.author_id);
   const own = viewer && viewer.id === l.author_id;
+  const shown = own ? config : (engineFor(l.engine).publicConfig?.(config) ?? config);
   return {
     id: l.id, authorId: l.author_id, author: publicUser(author), engine: l.engine, template: l.template,
     subject: engineFor(l.engine).subject, title: l.title, description: l.description, outcomes: l.outcomes,
-    instructions: l.instructions, config, goal, status: l.status, visibility: l.visibility, builtin: !!l.builtin,
+    instructions: l.instructions, config: shown, goal, status: l.status, visibility: l.visibility, builtin: !!l.builtin,
     version: l.version, createdAt: l.created_at, updatedAt: l.updated_at,
     ...(own ? { isOwner: true, takenDown: !!l.taken_down, takedownReason: l.takedown_reason || undefined } : {})
   };
@@ -197,6 +198,25 @@ export default function register(r, { db, limit, lockout }) {
     if (db.get(`SELECT 1 FROM reports WHERE lab_id = ? AND reporter_id = ? AND status = 'open'`, l.id, user.id)) fail(409, 'You already reported this lab. A moderator will review it.');
     db.run('INSERT INTO reports (id, lab_id, reporter_id, reason, created_at) VALUES (?, ?, ?, ?, ?)', randomUUID(), l.id, user.id, reason, nowIso());
     return withStatus(201, { ok: true });
+  });
+
+  // ----- Server-side simulation for engines with hidden answers (chemistry) -----
+  r.post('labs/:id/sim', ctx => {
+    const user = ctx.requireUser();
+    limit('sim', user.id, 600, 60000, 'Slow down a little: too many simulation steps.');
+    const l = getLab(ctx.params.id), access = labAccess(db, l, user);
+    if (access === 'none' || access === 'locked') fail(404, 'Lab not available.');
+    requireEntitlement(db, user, 'engine', { engine: l.engine });
+    const engine = engineFor(l.engine);
+    if (!engine.simulate) fail(400, 'This lab runs in your browser.');
+    const config = JSON.parse(l.config), b = ctx.body;
+    if (l.engine === 'titration') {
+      if (!Array.isArray(b.volumes) || !b.volumes.length || b.volumes.length > 300 || b.volumes.some(v => !Number.isFinite(v) || v < 0 || v > config.burette) || typeof b.rinsed !== 'boolean')
+        fail(400, 'Send up to 300 burette volumes and whether the burette was rinsed.');
+      return { points: engine.simulate(l.template, config, { volumes: b.volumes, rinsed: b.rinsed }) };
+    }
+    if (!Number.isInteger(b.temperature)) fail(400, 'Choose a temperature.');
+    try { return { run: engine.simulate(l.template, config, { temperature: b.temperature }) }; } catch (e) { fail(400, e.message); }
   });
 
   // ----- Practice -----

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { BASE, defaultConfig } from '../shared/labConfig.js';
 import { platform, draft } from './helpers.mjs';
 
-const builtins = Object.keys(BASE).length;
+const builtins = Object.keys(BASE).length + 2; // 7 circuits + titration + kinetics
 
 test('any user creates labs; drafts stay private; sessions and data survive a restart', async () => {
   const dir = await mkdtemp(join(tmpdir(), 's2s-platform-'));

@@ -30,7 +30,7 @@ export function splitOpen(text) {
 }
 
 /** kind: 'home' | 'lab'; history: [{role:'user'|'nour', text}]; ctx: lab context for 'lab'. */
-export async function askNour({ kind, history, ctx, onText, signal }) {
+export async function askNour({ kind, history, ctx, labId, state, onText, signal }) {
   const msgs = history.filter(m => m.text).slice(-12);
   if (caps.sample && !sampleOff) {
     const system = kind === 'lab' ? labPrompt(ctx) : homePrompt(LIVE);
@@ -47,7 +47,7 @@ export async function askNour({ kind, history, ctx, onText, signal }) {
   if (server !== 'off') {
     try {
       const r = await fetch('/api/nour', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal,
-        body: JSON.stringify({ kind, ctx: kind === 'lab' ? ctx : undefined, messages: msgs.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text.slice(0, 2000) })) }) });
+        body: JSON.stringify({ kind, ctx: kind === 'lab' ? ctx : undefined, labId: kind === 'lab' ? labId : undefined, state: kind === 'lab' ? state : undefined, messages: msgs.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text.slice(0, 2000) })) }) });
       if (r.ok) { const j = await r.json(); if (server !== 'on') { server = 'on'; changed(); } return { ...splitOpen(j.text), via: 'server' }; }
       if (r.status === 503 || r.status === 404) { server = 'off'; changed(); }
       else if (r.status === 429) return { text: 'I need a short break. Try again in a few minutes.', via: 'server' };

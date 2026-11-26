@@ -1,0 +1,48 @@
+.chem-page{max-width:1320px}
+.chem-top{display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:start;margin-bottom:8px}
+.chem-top h1{margin:6px 0}
+.chem-layout{display:grid;grid-template-columns:minmax(220px,300px) minmax(320px,1fr) minmax(320px,1.1fr);grid-template-areas:"bench steps curve" "bench steps nour";gap:20px;align-items:start}
+.chem-layout:has(.chem-steps:first-child){grid-template-columns:minmax(320px,1fr) minmax(360px,1.2fr);grid-template-areas:"steps curve" "steps nour"}
+.chem-bench{grid-area:bench}.chem-steps{grid-area:steps}.chem-curve{grid-area:curve}.chem-nour{grid-area:nour}
+.chem-panel{background:#111d25;border:1px solid #2d414c;border-radius:12px;padding:20px}
+.chem-panel h2{font-size:18px;margin:16px 0 8px}
+.chem-panel h2:first-child{margin-top:0}
+.chem-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+.chem-row label{display:flex;gap:6px;align-items:center;font-weight:400}
+.chem-steps select,.chem-steps input[type=number]{width:100%}
+.chem-steps form{display:grid;gap:10px}
+.chem-apparatus{width:100%;max-height:440px}
+.chem-apparatus .glass{fill:rgba(200,225,240,.08);stroke:#9fbccb;stroke-width:1.5}
+.chem-apparatus .titrant{fill:rgba(160,205,240,.45)}
+.chem-apparatus .tick{stroke:#9fbccb;stroke-width:1}
+.chem-apparatus text{fill:#9fbccb;font:10px var(--font-mono)}
+.chem-apparatus .stopcock{fill:#5b7380}
+.chem-apparatus .drop{fill:rgba(160,205,240,.8);animation:chem-drop .5s ease-in infinite}
+.chem-apparatus .flask-liquid{transition:fill .6s ease;opacity:.85}
+@keyframes chem-drop{from{transform:translateY(0)}to{transform:translateY(50px);opacity:0}}
+@media (prefers-reduced-motion:reduce){.chem-apparatus .drop{animation:none}.chem-apparatus .flask-liquid{transition:none}}
+.chem-readout{display:flex;justify-content:space-between;font-family:var(--font-mono);color:#cfe1e8;margin-top:8px}
+.chem-readout b{color:var(--meter);font-size:20px}
+.chem-chart{width:100%;height:auto;background:#0b151b;border-radius:8px}
+.chem-chart.empty{display:grid;place-items:center;color:#7f98a3;font-size:14px;width:100%}
+.chem-chart text{fill:#8fa6b0;font:10px var(--font-mono)}
+.chem-chart .axis{fill:#b9ccd3;font:12px var(--font-body)}
+.chem-chart .grid{stroke:#1d2e37;stroke-width:1}
+.chem-hint{background:#2b2414;border:1px solid #7a6431;color:#f2dfae;border-radius:10px;padding:12px 14px;margin-top:12px}
+.chem-fits{margin-top:8px;font-family:var(--font-mono);font-size:13px}
+.chem-mode{color:#7f98a3;font-size:13px;margin:0 0 8px}
+.chem-nour-log{max-height:260px;overflow:auto;display:grid;gap:8px;padding-right:4px}
+.chem-nour-log .nmsg{margin:0;padding:10px 12px;border-radius:10px;line-height:1.45}
+.chem-nour-log .nmsg.nour{background:#152630;border:1px solid #2d414c}
+.chem-nour-log .nmsg.user{background:#1f4152;justify-self:end;max-width:85%}
+.chem-nour-form{display:flex;gap:8px;margin-top:10px}
+.chem-nour-form input{flex:1}
+@media (max-width:1100px){.chem-layout,.chem-layout:has(.chem-steps:first-child){grid-template-columns:1fr;grid-template-areas:"bench" "steps" "curve" "nour"}.chem-top{grid-template-columns:1fr}}
+.chem-page .chem-row label{display:flex;flex-direction:row;align-items:center;gap:6px;margin:0}
+.chem-apparatus .flask-water{fill:rgba(190,220,235,.18)}
+@media (max-width:1100px){.chem-apparatus{max-height:300px}.chem-bench{display:grid;grid-template-columns:1fr;justify-items:center}}
+.chem-builder{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px;align-items:start}
+.chem-builder .platform-panel{margin-top:0;display:grid;gap:12px}
+.kind-grid{margin-top:20px}
+.kind-card{text-align:left;cursor:pointer;color:inherit;font:inherit;padding:0}
+.kind-card:hover,.kind-card:focus-visible{border-color:var(--meter)}

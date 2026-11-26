@@ -1,0 +1,29 @@
+{
+  "_about": "Curated reagent catalog. Labs can only use these entries: authors cannot type free-text chemicals, which keeps every simulation to standard teaching-lab chemistry. Acid constants are textbook values at 25 °C (Harris, Quantitative Chemical Analysis, appendix G; CRC Handbook of Chemistry and Physics). Indicator ranges from the same sources. Kinetics values are typical undergraduate-lab literature values.",
+  "Kw": 1e-14,
+  "acids_bases": {
+    "hcl": { "name": "Hydrochloric acid", "formula": "HCl", "kind": "acid", "strong": true, "anion": 1, "endpoints": [1], "hazards": "Corrosive. Wear goggles and gloves." },
+    "acetic_acid": { "name": "Acetic acid", "formula": "CH3COOH", "kind": "acid", "system": { "pKa": [4.76], "z0": 0 }, "endpoints": [1], "hazards": "Irritant at high concentration." },
+    "phosphoric_acid": { "name": "Phosphoric acid", "formula": "H3PO4", "kind": "acid", "system": { "pKa": [2.15, 7.2, 12.35], "z0": 0 }, "endpoints": [1, 2], "hazards": "Corrosive. Wear goggles and gloves." },
+    "oxalic_acid": { "name": "Oxalic acid", "formula": "H2C2O4", "kind": "acid", "system": { "pKa": [1.25, 4.27], "z0": 0 }, "endpoints": [2], "hazards": "Harmful if swallowed." },
+    "citric_acid": { "name": "Citric acid", "formula": "C6H8O7", "kind": "acid", "system": { "pKa": [3.13, 4.76, 6.4], "z0": 0 }, "endpoints": [3], "hazards": "Eye irritant." },
+    "naoh": { "name": "Sodium hydroxide", "formula": "NaOH", "kind": "base", "strong": true, "cation": 1, "endpoints": [1], "hazards": "Corrosive. Wear goggles and gloves." },
+    "ammonia": { "name": "Ammonia", "formula": "NH3", "kind": "base", "system": { "pKa": [9.25], "z0": 1, "startProtonated": false }, "endpoints": [1], "hazards": "Irritant vapour. Use in a fume hood." },
+    "sodium_carbonate": { "name": "Sodium carbonate", "formula": "Na2CO3", "kind": "base", "cation": 2, "system": { "pKa": [6.35, 10.33], "z0": 0, "startProtonated": false }, "endpoints": [1, 2], "hazards": "Eye irritant." }
+  },
+  "titrants": ["naoh", "hcl"],
+  "indicators": {
+    "methyl_orange": { "name": "Methyl orange", "low": 3.1, "high": 4.4, "acidColor": "#d6402b", "baseColor": "#f2c230" },
+    "bromocresol_green": { "name": "Bromocresol green", "low": 3.8, "high": 5.4, "acidColor": "#e6d23a", "baseColor": "#2f6fd1" },
+    "methyl_red": { "name": "Methyl red", "low": 4.4, "high": 6.2, "acidColor": "#d8323c", "baseColor": "#f0d23a" },
+    "bromothymol_blue": { "name": "Bromothymol blue", "low": 6.0, "high": 7.6, "acidColor": "#e8d43c", "baseColor": "#2a5fc9" },
+    "phenolphthalein": { "name": "Phenolphthalein", "low": 8.2, "high": 10.0, "acidColor": "rgba(255,255,255,0)", "baseColor": "#e0408f" },
+    "thymolphthalein": { "name": "Thymolphthalein", "low": 9.3, "high": 10.5, "acidColor": "rgba(255,255,255,0)", "baseColor": "#2f63d8" }
+  },
+  "reactions": {
+    "crystal_violet": { "name": "Crystal violet fading in excess NaOH", "equation": "CV+ + OH− → CVOH", "order": 1, "pseudo": true, "EaKJ": 59, "k25": { "min": 0.0015, "max": 0.004, "default": 0.0025 }, "unit": "s⁻¹", "species": "[CV+]", "c0": { "min": 1e-5, "max": 5e-5, "default": 2.5e-5 }, "hazards": "Crystal violet stains and is harmful; NaOH is corrosive." },
+    "iodide_peroxide": { "name": "Iodide-catalysed decomposition of hydrogen peroxide", "equation": "2 H2O2 → 2 H2O + O2", "order": 1, "pseudo": true, "EaKJ": 56, "k25": { "min": 0.0005, "max": 0.003, "default": 0.0012 }, "unit": "s⁻¹", "species": "[H2O2]", "c0": { "min": 0.1, "max": 1, "default": 0.5 }, "hazards": "Hydrogen peroxide is an oxidiser; wear goggles." },
+    "ethyl_acetate_saponification": { "name": "Saponification of ethyl acetate (equal concentrations)", "equation": "CH3COOC2H5 + OH− → CH3COO− + C2H5OH", "order": 2, "pseudo": false, "EaKJ": 41, "k25": { "min": 0.08, "max": 0.15, "default": 0.11 }, "unit": "L mol⁻¹ s⁻¹", "species": "[OH−]", "c0": { "min": 0.01, "max": 0.05, "default": 0.02 }, "hazards": "Ethyl acetate is flammable; NaOH is corrosive." },
+    "sucrose_inversion_zero": { "name": "Enzyme-saturated sucrose inversion (zero order at high substrate)", "equation": "C12H22O11 + H2O → C6H12O6 + C6H12O6", "order": 0, "pseudo": true, "EaKJ": 48, "k25": { "min": 0.0001, "max": 0.0005, "default": 0.0002 }, "unit": "mol L⁻¹ s⁻¹", "species": "[sucrose]", "c0": { "min": 0.2, "max": 0.6, "default": 0.4 }, "hazards": "Low hazard." }
+  }
+}

@@ -7,10 +7,12 @@ const KEYS = [
   ['diode',/silicon|rectif|سيليكون|\bdiode\b/i],
   ['ohm', /\bohm|resistor|resistance|current|voltage|أوم|اوم|مقاوم|تيار|جهد|فولت/i],
   ['led', /\bled\b|light.?emitting|ليد|دايود|ثنائي|لمبة/i],
-  ['rc', /\brc\b|capacitor|charging|time constant|مكثف|كاباسيتور|شحن/i]
+  ['rc', /\brc\b|capacitor|charging|time constant|مكثف|كاباسيتور|شحن/i],
+  ['titration', /titrat|burette|indicator|acid|base|\bph\b|معايرة|حمض|قاعدة|سحاحة|دليل/i],
+  ['kinetics', /kinetic|rate law|rate constant|activation energy|arrhenius|reaction rate|حركية|سرعة التفاعل|طاقة التنشيط/i]
 ];
-const SOON = /pendulum|lens|spring|hooke|projectile|بندول|عدسة|زنبرك|مقذوف/i;
-const OTHER = /chemi|titration|flame test|reaction|biology|كيمي|معايرة|تفاعل|احياء|أحياء/i;
+const SOON = /pendulum|lens|spring|hooke|projectile|equilibri|le chatelier|ksp|بندول|عدسة|زنبرك|مقذوف|اتزان/i;
+const OTHER = /biology|احياء|أحياء/i;
 
 const CONFUSED = /don'?t understand|not understand|confus|what do you mean|explain|help me|lost|مش فاهم|مش فاهمة|مفهمتش|مش واضح|اشرح|وضح|ساعدني|يعني ايه|يعني إيه/i;
 const QUESTION = /\?|؟|^\s*(what|why|how|when|is|does|can|ايه|إيه|ليه|ازاي|إزاي|هل|ما هو|ما هي|لماذا|كيف)\b|\b(what is|what's|how does|why does|يعني ايه|يعني إيه)/i;
@@ -28,12 +30,12 @@ const NUDGES = [
 ];
 let nudge = 0;
 export function fallbackReply(text) {
-  if (OTHER.test(text)) return { text: "Sim2Skill is physics only for now: circuits today, with mechanics and optics coming next. Want to start with one of the seven circuit labs?", labs: true };
+  if (OTHER.test(text)) return { text: "Sim2Skill covers physics and chemistry for now. Want to start with a circuit lab or a titration?", labs: true };
   if (SOON.test(text)) return { text: "That experiment is on our roadmap but not open yet. Try one of the seven available electronics labs.", labs: true };
   const asks = QUESTION.test(text) && !/\b(open|start|go to|take me|try)\b|افتح|ابدأ|ابدا|وديني|عايز اجرب|عاوز اجرب/i.test(text);
   if (asks) { const c = CONCEPTS.find(([, re]) => re.test(text)); if (c) return { text: c[2], labs: true }; }
   if (CONFUSED.test(text) && !KEYS.some(([, re]) => re.test(text))) return { text: "No problem, let me say it simply. Sim2Skill is a lab on your screen: you pick an experiment, build the circuit on a 3D bench, close the switch and read the meters. If something goes wrong, I tell you why. What topic are you studying right now?", labs: true };
-  const hit = [KEYS[5],...KEYS.slice(0,4),KEYS[6],KEYS[4]].find(([, re]) => re.test(text));
+  const hit = [KEYS[7],KEYS[8],KEYS[5],...KEYS.slice(0,4),KEYS[6],KEYS[4]].find(([, re]) => re.test(text));
   if (hit) { const lab = LABS.find(l => l.id === hit[0]); return { text: `Good choice. Taking you to the ${lab.title} lab now.`, open: hit[0] }; }
   return { text: NUDGES[nudge++ % NUDGES.length], labs: true };
 }

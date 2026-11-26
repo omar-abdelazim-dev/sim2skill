@@ -75,6 +75,27 @@ No real money is taken yet and no card data ever reaches the server. `PAYMENT_PR
 
 Organizations: start a pilot from **Plans**, then invite members by email (pending invites are accepted when that email signs up) or share a join code. The organization page shows seats, members, usage, and an invoice request form.
 
+### Chemistry labs
+
+Two university-level chemistry engines are live, both behind the same engine interface as circuits (`shared/engines/index.js`: validate, goal, publish check, evaluate, invariants, hints, Nour context):
+
+- **Acid–base titration** (`shared/engines/titration.js`): strong and weak acids and bases, buffers, and polyprotic acids. pH is computed from the full charge balance with a safeguarded Newton–Raphson. Students rinse (or forget to rinse) the burette, choose an indicator, titrate in steps or drops on a 2D bench with a live pH curve, record the endpoint, and report the original concentration. The detector catches:
+  - an indicator whose range misses the equivalence point
+  - overshooting or stopping early
+  - an unrinsed burette
+  - mL/L mix-ups
+  - a forgotten dilution
+  - the wrong mole ratio
+- **Reaction kinetics** (`shared/engines/kinetics.js`): integrated rate laws (orders 0, 1 and 2) and the Arrhenius equation. Students run the reaction at several temperatures, compare [A], ln[A] and 1/[A] plots, and report the order and Ea. The detector catches:
+  - the wrong order
+  - log10 used instead of ln
+  - J and kJ mixed up
+  - °C used instead of K
+
+Reagents and reactions come only from the curated `shared/data/reagents.json` (textbook constants at 25 °C, with sources). Authors cannot type free-text chemicals, which is the safety control.
+
+The unknown (a concentration, or Ea and k) never reaches the browser. Students' benches call `POST /api/labs/:id/sim`, and grading runs on the server. Creating a chemistry lab: **Lab studio → Create a lab → Chemistry**. It has a live preview, shows which indicators are suitable, and runs a reference-solution check before publishing. Equilibrium, electrochemistry and spectroscopy are registered as planned engines.
+
 ### Storage and security
 
 Data lives in SQLite at `.data/platform.db` (git-ignored) with versioned migrations in `server/migrations/`. On first start, an old `.data/platform.json` is imported (password hashes unchanged) and renamed `platform.json.migrated`. Sessions persist across restarts; only a SHA-256 of each session token is stored. Passwords and access codes use scrypt with `timingSafeEqual`. Sign-in, access codes, reports, checkout and Nour are rate limited per user (or per IP when signed out); wrong access codes lock that lab for 15 minutes after 5 tries. Every route that returns or uses a lab applies the same visibility rule on the server (`VISIBLE_SQL` in `server/lib.mjs`). See `docs/architecture.md` for the schema.

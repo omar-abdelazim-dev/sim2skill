@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import CORE from '../src/lab/core.js';
 import { BASE } from '../shared/labConfig.js';
 import { openDb, importLegacyJson } from './db.mjs';
+import { ENGINES } from '../shared/engines/index.js';
 import { fail, nowIso, sha256, createLimiter, createLockout } from './lib.mjs';
 import { createRouter, STATUS } from './router.mjs';
 import authRoutes from './routes/auth.mjs';
@@ -30,6 +31,19 @@ export async function loadEnvFile(file = resolve('.env')) {
 }
 
 const SESSION_MS = 7 * 86400000;
+const CHEMISTRY_BUILTINS = [
+  { id: 'titration', engine: 'titration', title: 'Acid–base titration: vinegar strength',
+    description: 'Find the acetic acid concentration of a diluted vinegar sample by titration with standard sodium hydroxide.',
+    outcomes: 'Choose an indicator from the equivalence pH. Read a burette endpoint precisely. Use stoichiometry and dilution to find an unknown concentration. Interpret a weak-acid titration curve, including the buffer region where pH = pKa.',
+    instructions: '1. Rinse the burette with titrant before filling it.\n2. Choose an indicator.\n3. Add NaOH in large steps first, then in drops near the endpoint, swirling each time.\n4. Record the volume at the first permanent colour change.\n5. Calculate the original concentration, remembering the dilution, and submit it.',
+    config: { analyte: 'acetic_acid', analyteConc: 0.85, analyteVolume: 25, dilution: 10, titrant: 'naoh', titrantConc: 0.1, endpoint: 1,
+      indicators: ['methyl_orange', 'methyl_red', 'bromothymol_blue', 'phenolphthalein'], tolerance: 2, burette: 50 } },
+  { id: 'kinetics', engine: 'kinetics', title: 'Reaction kinetics: crystal violet fading',
+    description: 'Follow the fading of crystal violet in excess hydroxide at several temperatures to find the rate law and the activation energy.',
+    outcomes: 'Identify a reaction order from integrated rate-law plots. Extract rate constants from slopes. Use an Arrhenius plot to find the activation energy, with temperatures in kelvin.',
+    instructions: '1. Run the reaction at each temperature.\n2. Compare [A], ln[A] and 1/[A] against time and pick the straight one.\n3. Take k from the slope at each temperature.\n4. Plot ln k against 1/T (in kelvin) and find Ea from the slope.\n5. Submit the order and Ea in kJ/mol.',
+    config: { reaction: 'crystal_violet', k25: 0.0025, EaKJ: 59, c0: 2.5e-5, temperatures: [15, 25, 35, 45], tolerance: 10 } }
+];
 const builtinInstructions = 'Choose your components, predict the result, and run the circuit. Use the measurements and Nour’s hints to meet the goal.';
 
 function seed(db) {
@@ -41,6 +55,13 @@ function seed(db) {
       db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, status, visibility, builtin, version, first_published_at, created_at)
               VALUES (?, 'sim2skill', 'circuits', ?, ?, ?, ?, ?, 'published', 'public', 1, 1, ?, ?)`,
         template, template, e.title, e.intro, e.goal, builtinInstructions, now, now);
+    }
+    for (const lab of CHEMISTRY_BUILTINS) {
+      if (db.get('SELECT 1 FROM labs WHERE id = ?', lab.id)) continue;
+      const config = ENGINES[lab.engine].validateConfig(lab.id, lab.config);
+      db.run(`INSERT INTO labs (id, author_id, engine, template, title, description, outcomes, instructions, config, status, visibility, builtin, version, first_published_at, created_at)
+              VALUES (?, 'sim2skill', ?, ?, ?, ?, ?, ?, ?, 'published', 'public', 1, 1, ?, ?)`,
+        lab.id, lab.engine, lab.id, lab.title, lab.description, lab.outcomes, lab.instructions, JSON.stringify(config), now, now);
     }
   });
 }

@@ -9,6 +9,8 @@
 //   invariants(template, config, bench)  physical laws that must hold; returns a list of violations
 import { BASE, defaultConfig, validateConfig, buildDefinition, runConfigured, findSolution } from '../labConfig.js';
 import { titration } from './titration.js';
+import { kinetics } from './kinetics.js';
+import { equilibrium, electrochemistry, spectroscopy } from './stubs.js';
 
 const circuits = {
   id: 'circuits',
@@ -29,10 +31,13 @@ const circuits = {
     if (!ok) throw Error('Invalid circuit configuration.');
   },
   evaluate: (template, config, bench) => runConfigured(template, config, bench),
-  invariants: () => []
+  invariants: () => [],
+  publicConfig: c => c,
+  hint: () => '',
+  labContext: () => ({})
 };
 
-export const ENGINES = { circuits, titration };
+export const ENGINES = { circuits, titration, kinetics, equilibrium, electrochemistry, spectroscopy };
 
 export function engineFor(id) {
   const e = ENGINES[id || 'circuits'];
