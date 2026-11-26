@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { platform, draft } from './helpers.mjs';
 import { signMock } from '../server/billing/providers.mjs';
+import { setModels } from '../server/llm/models.mjs';
+import { RunnableLambda } from '@langchain/core/runnables';
+import { AIMessage } from '@langchain/core/messages';
 
 // Ends the 14-day trial so the account is on the Free plan.
 async function age(dir, userId) {
@@ -13,11 +16,7 @@ async function age(dir, userId) {
 }
 
 test('free plan limits: 2 public labs, no private labs, titration only, 10 Nour questions a day', async () => {
-  process.env.GEMINI_API_KEY = 'test-key';
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = (u, o) => String(u).startsWith('https://generativelanguage.googleapis.com/')
-    ? Promise.resolve(new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'Hi' }] } }] }), { status: 200 }))
-    : realFetch(u, o);
+  setModels({ chat: RunnableLambda.from(() => new AIMessage('Hi')) });
   const p = await platform();
   try {
     const u = await p.signup('Free User');
@@ -40,7 +39,7 @@ test('free plan limits: 2 public labs, no private labs, titration only, 10 Nour 
     assert.equal((await p.request('labs', 'POST', { ...draft, visibility: 'private' }, u.cookie)).status, 201, 'DEMO_MODE unlocks everything');
     delete process.env.DEMO_MODE;
   } finally {
-    globalThis.fetch = realFetch; delete process.env.GEMINI_API_KEY; delete process.env.DEMO_MODE;
+    setModels(null); delete process.env.DEMO_MODE;
     await p.close();
   }
 });

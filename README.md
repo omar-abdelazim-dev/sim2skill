@@ -96,6 +96,15 @@ Reagents and reactions come only from the curated `shared/data/reagents.json` (t
 
 The unknown (a concentration, or Ea and k) never reaches the browser. Students' benches call `POST /api/labs/:id/sim`, and grading runs on the server. Creating a chemistry lab: **Lab studio → Create a lab → Chemistry**. It has a live preview, shows which indicators are suitable, and runs a reference-solution check before publishing. Equilibrium, electrochemistry and spectroscopy are registered as planned engines.
 
+### Nour's AI (LangChain.js + RAG)
+
+Every model call goes through LangChain.js on the server (`server/llm/`), with tracing off. The browser never sees the key and the LangChain packages are not bundled into the client.
+
+- **Models:** chat is `ChatGoogleGenerativeAI` (`GEMINI_MODEL`, default `gemini-3.5-flash-lite`). Embeddings are `gemini-embedding-001` at 768 dimensions, with document and query task types. Embeddings sit behind a content-hash cache in SQLite (`embed_cache`), so the same text is never embedded twice. Errors map to 429 ("busy"), 502, or 503 when no key is set, and the browser then falls back to offline answers.
+- **Chain** (`chains.mjs`): load the lab from the database by `labId` (the browser only sends `kind`, `labId`, bench `state` and `messages`) → retrieve → format sources → prompt → Gemini → parse (drops thought parts, extracts `[[open:LAB_ID]]`). It returns `{ text, open, sources }`. Retrieved text sits in a delimited block that the model is told is data, not instructions. Hidden answers (an unknown concentration, Ea) are never put in the prompt.
+- **RAG:** a lab's description, outcomes, instructions, goal and built-in FAQ are chunked with `RecursiveCharacterTextSplitter` and indexed when a version is published. Unpublishing or a takedown removes the chunks. The retriever (`retriever.mjs`, a `BaseRetriever`) merges FTS5 keyword search and cosine similarity with reciprocal rank fusion. The access rule (public, owner, or granted) is applied **inside both SQL queries**, so a private chunk is never reachable by others. Without a key it uses keyword search only.
+- **Evaluation:** `npm run rag:eval` reports recall@5 offline (keyword search only). `LIVE_EVAL=1` with a key uses real embeddings and also measures how often answers cite a retrieved source.
+
 ### Storage and security
 
 Data lives in SQLite at `.data/platform.db` (git-ignored) with versioned migrations in `server/migrations/`. On first start, an old `.data/platform.json` is imported (password hashes unchanged) and renamed `platform.json.migrated`. Sessions persist across restarts; only a SHA-256 of each session token is stored. Passwords and access codes use scrypt with `timingSafeEqual`. Sign-in, access codes, reports, checkout and Nour are rate limited per user (or per IP when signed out); wrong access codes lock that lab for 15 minutes after 5 tries. Every route that returns or uses a lab applies the same visibility rule on the server (`VISIBLE_SQL` in `server/lib.mjs`). See `docs/architecture.md` for the schema.

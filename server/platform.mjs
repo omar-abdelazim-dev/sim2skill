@@ -15,6 +15,7 @@ import socialRoutes from './routes/social.mjs';
 import adminRoutes from './routes/admin.mjs';
 import billingRoutes from './routes/billing.mjs';
 import nourRoutes from './routes/nour.mjs';
+import { indexMissing } from './llm/rag.mjs';
 
 const ENV_KEYS = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'DEMO_MODE', 'PAYMENT_PROVIDER', 'ADMIN_EMAILS', 'COOKIE_SECURE', 'MOCK_WEBHOOK_SECRET'];
 
@@ -74,6 +75,7 @@ export async function createPlatformHandler(directory = process.env.DATA_DIR || 
   seed(db);
   importLegacyJson(db, dir);
   db.run('DELETE FROM sessions WHERE expires_at < ?', Date.now());
+  await indexMissing(db);
 
   const router = createRouter();
   const deps = { db, limit: createLimiter(), lockout: createLockout(), CORE };
@@ -129,8 +131,8 @@ export async function createPlatformHandler(directory = process.env.DATA_DIR || 
       const out = await match.route.handler(ctx);
       if (out !== undefined) out?.[STATUS] ? reply(out[STATUS], out.body) : reply(200, out);
     } catch (e) {
-      if (!e.status) console.error('Platform error:', e?.message || e);
-      reply(e.status || 500, { error: e.status ? e.message : 'Unable to save changes. Please try again.', ...(e.extra || {}) });
+      if (!e.expose) console.error('Platform error:', e?.message || e);
+      reply(e.expose ? e.status : 500, { error: e.expose ? e.message : 'Unable to save changes. Please try again.', ...(e.expose && e.extra ? e.extra : {}) });
     }
   };
 }

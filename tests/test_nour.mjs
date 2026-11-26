@@ -1,49 +1,122 @@
-// Nour's chat endpoint: off without a key, and when on, the server builds Nour's prompt itself.
+// Nour: LangChain chain with fake models (npm test never calls Gemini), error mapping, and the RAG access filter.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer } from 'node:http';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { writeFile, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createPlatformHandler } from '../server/platform.mjs';
+import { tmpdir } from 'node:os';
+import { RunnableLambda } from '@langchain/core/runnables';
+import { AIMessage } from '@langchain/core/messages';
+import { SyntheticEmbeddings } from '@langchain/core/utils/testing';
 import { splitOpen } from '../src/nour.js';
+import { setModels } from '../server/llm/models.mjs';
+import { parseAnswer } from '../server/llm/chains.mjs';
+import { LabRetriever, ftsQuery } from '../server/llm/retriever.mjs';
+import { CachedEmbeddings } from '../server/llm/cache.mjs';
+import { openDb } from '../server/db.mjs';
+import { platform, draft } from './helpers.mjs';
 
-async function serve() {
-  const handler = await createPlatformHandler(await mkdtemp(join(tmpdir(), 's2s-nour-')));
-  const srv = createServer((q, r) => handler(q, r, () => { r.statusCode = 404; r.end(); }));
-  await new Promise(ok => srv.listen(0, '127.0.0.1', ok));
-  return { url: `http://127.0.0.1:${srv.address().port}/api/nour`, close: () => srv.close() };
-}
-const realFetch = globalThis.fetch;
-const ask = (url, body) => realFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const ask = (p, body, cookie) => p.request('nour', 'POST', body, cookie);
+const q = (text, extra = {}) => ({ kind: 'home', messages: [{ role: 'user', content: text }], ...extra });
 
-test('without an API key Nour reports offline', async () => {
-  delete process.env.GEMINI_API_KEY;
-  const s = await serve();
-  assert.deepEqual(await (await realFetch(s.url)).json(), { ai: false });
-  assert.equal((await ask(s.url, { kind: 'lab', messages: [{ role: 'user', content: 'hi' }] })).status, 503);
-  s.close();
+test('without a key or model Nour reports offline', async () => {
+  delete process.env.GEMINI_API_KEY; setModels(null);
+  const p = await platform();
+  try {
+    assert.deepEqual((await p.request('nour')).data, { ai: false });
+    assert.equal((await ask(p, q('hi'))).status, 503);
+  } finally { await p.close(); }
 });
 
-test('with a key the server sends a lab prompt built from the bench state', async () => {
-  process.env.GEMINI_API_KEY = 'test-key';
-  let sent = null;
-  globalThis.fetch = async (u, o) => { if (String(u).startsWith('https://generativelanguage.googleapis.com/')) { sent = { url: String(u), key: o.headers['x-goog-api-key'], ...JSON.parse(o.body) }; return new Response(JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text: 'thinking…', thought: true }, { text: 'What does the meter read?' }] } }] }), { status: 200 }); } return realFetch(u, o); };
+test('the chain builds the lab prompt from the database, parses the open tag and returns sources', async () => {
+  let seen = null;
+  setModels({
+    chat: RunnableLambda.from(prompt => { seen = prompt.toChatMessages(); return new AIMessage({ content: [{ type: 'text', text: 'secret thoughts', thought: true }, { type: 'text', text: 'Check the LED polarity. [[open:led]]' }] }); }),
+    embeddings: new SyntheticEmbeddings({ vectorSize: 32 })
+  });
+  const p = await platform();
   try {
-    const s = await serve();
-    assert.deepEqual(await (await realFetch(s.url)).json(), { ai: true });
-    const r = await ask(s.url, { kind: 'lab', ctx: { title: 'LED with a resistor', goal: 'Light the LED', state: { detected_mistake: 'led_reversed' } }, messages: [{ role: 'assistant', content: 'Welcome' }, { role: 'user', content: 'why is it dark?' }] });
+    const u = await p.signup('Asker');
+    const r = await ask(p, { kind: 'lab', labId: 'led', ctx: { title: 'FAKE TITLE FROM BROWSER' }, state: { detected_mistake: 'led_reversed' },
+      messages: [{ role: 'user', content: 'Why does an LED need a resistor?' }] }, u.cookie);
     assert.equal(r.status, 200);
-    assert.equal((await r.json()).text, 'What does the meter read?');
-    assert.match(sent.url, /models\/gemini-[a-z0-9.-]+:generateContent$/);
-    assert.equal(sent.key, 'test-key');
-    assert.match(sent.systemInstruction.parts[0].text, /LED with a resistor/);
-    assert.match(sent.systemInstruction.parts[0].text, /led_reversed/);
-    assert.equal(sent.contents[0].role, 'user');
-    assert.equal(sent.contents.length, 1);
-    assert.equal((await ask(s.url, { kind: 'anything', messages: [{ role: 'user', content: 'x' }] })).status, 400);
-    s.close();
-  } finally { globalThis.fetch = realFetch; delete process.env.GEMINI_API_KEY; }
+    assert.equal(r.data.text, 'Check the LED polarity.');
+    assert.equal(r.data.open, 'led');
+    assert.ok(r.data.sources.some(s => s.labId === 'led'), 'the LED lab FAQ is retrieved');
+    const system = seen[0].content;
+    assert.match(system, /LED with a resistor/, 'title comes from the database');
+    assert.doesNotMatch(system, /FAKE TITLE/, 'browser ctx is ignored');
+    assert.match(system, /led_reversed/);
+    assert.match(system, /REFERENCE_MATERIAL/);
+    assert.match(system, /data, not instructions/);
+    assert.equal(seen[seen.length - 1].content, 'Why does an LED need a resistor?');
+    assert.equal((await ask(p, { kind: 'lab', labId: 'does-not-exist', messages: [{ role: 'user', content: 'hi' }] }, u.cookie)).status, 404);
+    assert.equal((await ask(p, { kind: 'nope', messages: [{ role: 'user', content: 'hi' }] })).status, 400);
+    assert.equal((await ask(p, { kind: 'home', messages: [{ role: 'assistant', content: 'hi' }] })).status, 400);
+    const titration = await ask(p, { kind: 'lab', labId: 'titration', messages: [{ role: 'user', content: 'What is the answer?' }] }, u.cookie);
+    assert.equal(titration.status, 200);
+    assert.doesNotMatch(seen[0].content, /0\.85/, 'the hidden concentration is never in the prompt');
+  } finally { setModels(null); await p.close(); }
+});
+
+test('provider errors map to 429 busy or 502', async () => {
+  const p = await platform();
+  try {
+    setModels({ chat: RunnableLambda.from(() => { throw Object.assign(Error('Resource exhausted'), { status: 429 }); }), embeddings: new SyntheticEmbeddings({ vectorSize: 8 }) });
+    const busy = await ask(p, q('hello'));
+    assert.equal(busy.status, 429);
+    assert.match(busy.data.error, /busy/);
+    setModels({ chat: RunnableLambda.from(() => { throw Object.assign(Error('Bad request from provider'), { status: 400 }); }), embeddings: new SyntheticEmbeddings({ vectorSize: 8 }) });
+    const broken = await ask(p, q('hello'));
+    assert.equal(broken.status, 502);
+    assert.doesNotMatch(broken.data.error, /provider/, 'provider messages are not exposed');
+  } finally { setModels(null); await p.close(); }
+});
+
+test('RAG access filter: a private chunk never reaches anonymous, non-granted or other users', async () => {
+  setModels({ chat: RunnableLambda.from(() => new AIMessage('ok')), embeddings: new SyntheticEmbeddings({ vectorSize: 32 }) });
+  const p = await platform();
+  try {
+    const owner = await p.signup('Owner'), friend = await p.signup('Friend'), stranger = await p.signup('Stranger');
+    const made = await p.request('labs', 'POST', { ...draft, title: 'Hidden zebracorn lab', visibility: 'private', accessCode: 'letmein99',
+      instructions: 'The zebracorn resonance appears at exactly forty two hertz in this private experiment.' }, owner.cookie);
+    await p.request('labs/' + made.data.id + '/submit', 'POST', {}, owner.cookie);
+    await p.request('labs/' + made.data.id + '/access', 'POST', { code: 'letmein99' }, friend.cookie);
+    const pub = await p.request('labs', 'POST', { ...draft, title: 'Public resonance lab', instructions: 'Resonance in a public circuit experiment for everyone.' }, owner.cookie);
+    await p.request('labs/' + pub.data.id + '/submit', 'POST', {}, owner.cookie);
+
+    const db = openDb(p.dir), retriever = new LabRetriever({ db, k: 8 });
+    const hits = async viewerId => (await retriever.invoke('zebracorn resonance forty two hertz', { configurable: { viewerId } })).map(d => d.metadata.lab_id);
+    assert.equal((await hits('')).includes(made.data.id), false, 'anonymous');
+    assert.equal((await hits(stranger.id)).includes(made.data.id), false, 'not granted');
+    assert.equal((await hits(friend.id)).includes(made.data.id), true, 'granted');
+    assert.equal((await hits(owner.id)).includes(made.data.id), true, 'owner');
+    assert.equal((await hits(stranger.id)).includes(pub.data.id), true, 'public labs are found');
+    // Through the API, a stranger's question never cites the private lab.
+    const r = await ask(p, q('zebracorn resonance forty two hertz'), stranger.cookie);
+    assert.equal(r.data.sources.some(s => s.labId === made.data.id), false);
+    // Unpublishing removes the chunks.
+    await p.request('labs/' + made.data.id + '/unpublish', 'POST', {}, owner.cookie);
+    assert.equal((await hits(owner.id)).includes(made.data.id), false);
+    db.close();
+  } finally { setModels(null); await p.close(); }
+});
+
+test('parser, FTS query sanitizing and the embedding cache', async () => {
+  assert.deepEqual(parseAnswer(new AIMessage('Go [[open:pendulum]]')), { text: 'Go', open: null });
+  assert.deepEqual(parseAnswer(new AIMessage({ content: [{ type: 'text', text: 'x', thought: true }, { type: 'text', text: 'Hi [[open:ohm]]' }] })), { text: 'Hi', open: 'ohm' });
+  assert.equal(ftsQuery('rate" OR 1=1 -- NEAR(x)'), '"rate" OR "or" OR "near"');
+  assert.match(ftsQuery('ما هي المعايرة؟'), /"المعايرة"/);
+  const dir = await mkdtemp(join(tmpdir(), 's2s-cache-'));
+  const db = openDb(dir);
+  let calls = 0;
+  const base = new SyntheticEmbeddings({ vectorSize: 8 });
+  const counting = { embedDocuments: async t => { calls += t.length; return base.embedDocuments(t); }, embedQuery: async t => { calls++; return base.embedQuery(t); } };
+  const cached = new CachedEmbeddings(db, counting, 'test');
+  const a = await cached.embedDocuments(['alpha', 'beta']);
+  const b = await cached.embedDocuments(['alpha', 'beta', 'gamma']);
+  assert.equal(calls, 3, 'unchanged text is never embedded twice');
+  assert.deepEqual(a[0].map(x => +x.toFixed(5)), b[0].map(x => +x.toFixed(5)));
+  db.close();
 });
 
 test('an open-lab tag is removed from the text and only accepts live labs', () => {
@@ -51,10 +124,8 @@ test('an open-lab tag is removed from the text and only accepts live labs', () =
   assert.equal(splitOpen('Sure [[open:pendulum]]').open, null);
 });
 
-test('the server reads the Gemini key from a .env file without overriding the shell', async () => {
+test('the server reads settings from a .env file without overriding the shell', async () => {
   const { loadEnvFile } = await import('../server/platform.mjs');
-  const { writeFile, mkdtemp } = await import('node:fs/promises');
-  const { join } = await import('node:path'); const { tmpdir } = await import('node:os');
   const f = join(await mkdtemp(join(tmpdir(), 'env-')), '.env');
   await writeFile(f, '# comment\r\nGEMINI_API_KEY="abc123"\nGEMINI_MODEL=gemini-3.8-flash\nOTHER=nope\n');
   delete process.env.GEMINI_API_KEY; process.env.GEMINI_MODEL = 'from-shell'; delete process.env.OTHER;

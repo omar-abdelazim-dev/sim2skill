@@ -3,7 +3,7 @@ import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypt
 import { PLANS, TRIAL_DAYS, engineAllowed } from '../shared/plans.js';
 
 export function fail(status, message, extra) {
-  throw Object.assign(Error(message), { status, extra });
+  throw Object.assign(Error(message), { status, extra, expose: true });
 }
 export const nowIso = () => new Date().toISOString();
 export const sha256 = text => createHash('sha256').update(text).digest('hex');

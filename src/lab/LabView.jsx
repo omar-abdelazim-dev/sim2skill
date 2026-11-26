@@ -85,7 +85,7 @@ function LabChat({ folded }) {
     setDraft(''); ACT.userSays(text); setBusy(true); setStream('');
     const c = new AbortController(); ctrl.current = c;
     let reply = null;
-    try { reply = await askNour({ kind: 'lab', history: chatOf(S.exp), ctx: labContext(), onText: t => setStream(t), signal: c.signal }); } catch (err) { reply = null; }
+    try { const lc = labContext(); reply = await askNour({ kind: 'lab', history: chatOf(S.exp), ctx: lc, labId: S.lab?.id || S.exp, state: lc.state, onText: t => setStream(t), signal: c.signal }); } catch (err) { reply = null; }
     if (c.signal.aborted) return;
     setBusy(false); setStream('');
     ACT.nourSays(reply && reply.text ? reply.text : labFallback(text));
