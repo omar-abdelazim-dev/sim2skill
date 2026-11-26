@@ -139,3 +139,19 @@ Models: ideal DC resistance networks; 2.0/2.2/3.2 V fixed forward drops for red/
 Separate-room lifecycle: selecting a lab loads a fresh starting circuit and that lab’s component palette; the 3D scene creates one station, and returning to another lab mounts a new scene. GPU resources are disposed on exit. **Orbit**, **Walk**, and **Schematic** views remain available. If WebGL initialization fails, the lab switches to the interactive schematic. Updated visual/3D browser QA remains unverified because the browser access host is unavailable; use schematic view if your device cannot render WebGL.
 
 Existing `.data/platform.json` files are migrated additively with the new built-in labs. Accounts, authored content, and practice records are retained. Older tutor drafts can be opened in the builder to add a circuit configuration.
+
+## Course material for the physics labs (RAG)
+
+Nour can answer physics-lab questions from the student's own course PDFs. Chemistry labs and the home chat are unaffected.
+
+```
+npm run rag:course -- <folder-with-pdfs>      # index + embed (resumable; stops cleanly on the free-tier daily quota)
+npm run rag:course -- <folder> --no-embed     # keyword search only
+npm run rag:course -- --stats
+npm run rag:course -- <folder> --remove "Source name"
+```
+
+Put an optional `labels.json` in the folder to map file names to display names, e.g. `{"file-c2782821.pdf": "PHY212 Lab Manual"}`.
+Answers from the course show their pages ("From your course material · PHY212 Lab Manual, p. 23"); anything else is labelled
+"Not from your course material". The PDFs and the index are not committed (`course-material/` and the SQLite DB are git-ignored).
+This version runs on Node with SQLite and Gemini embeddings; MongoDB Atlas is not used, so `MONGODB_URI` is not needed.

@@ -7,14 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/test_core.mjs && node tests/test_home.mjs && node --test tests/test_platform.mjs tests/test_builder.mjs tests/test_nour.mjs tests/test_billing.mjs tests/test_chemistry.mjs tests/test_media_quiz.mjs",
+    "test": "node tests/test_core.mjs && node tests/test_home.mjs && node --test tests/test_platform.mjs tests/test_builder.mjs tests/test_nour.mjs tests/test_billing.mjs tests/test_chemistry.mjs tests/test_media_quiz.mjs tests/test_course.mjs",
     "start": "node server/start.mjs",
-    "rag:eval": "node tests/rag_eval.mjs"
+    "rag:eval": "node tests/rag_eval.mjs",
+    "rag:course": "node scripts/index-course.mjs"
   },
   "dependencies": {
     "@langchain/core": "1.5.1",
     "@langchain/google-genai": "2.3.7",
     "@langchain/textsplitters": "1.0.2",
+    "pdfjs-dist": "4.10.38",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "three": "0.128.0"

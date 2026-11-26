@@ -15,7 +15,7 @@ export function ftsQuery(text) {
   return [...new Set(terms)].slice(0, 24).map(t => `"${t}"`).join(' OR ');
 }
 
-const cosine = (a, b) => {
+export const cosine = (a, b) => {
   let dot = 0, na = 0, nb = 0;
   for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
   return dot / (Math.sqrt(na * nb) || 1);

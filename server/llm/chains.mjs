@@ -11,6 +11,7 @@ import { labAccess, fail } from '../lib.mjs';
 import { nourPrompt, formatDocs } from './prompts.mjs';
 import { LabRetriever } from './retriever.mjs';
 import { chatModel } from './models.mjs';
+import { CourseRetriever, courseCount, courseRules, splitOrigin } from './course.mjs';
 
 // Gemini can return thought parts; keep only the visible text. Then pull out [[open:LAB_ID]] like splitOpen does.
 export function parseAnswer(message) {
@@ -35,7 +36,7 @@ export function loadContext(db) {
     const messages = input.messages;
     const history = messages.slice(0, -1).slice(-12).map(m => (m.role === 'user' ? new HumanMessage(m.content) : new AIMessage(m.content)));
     const question = messages[messages.length - 1].content;
-    if (input.kind !== 'lab') return { system: homePrompt(LIVE), history, question };
+    if (input.kind !== 'lab') return { system: homePrompt(LIVE), history, question, physics: false };
     const lab = typeof input.labId === 'string' ? db.get('SELECT * FROM labs WHERE id = ?', input.labId) : null;
     const access = labAccess(db, lab, viewer);
     if (access === 'none' || access === 'locked') fail(404, 'Lab not available.');
@@ -48,23 +49,33 @@ export function loadContext(db) {
       : engine.labContext(engine.publicConfig(config_), undefined, undefined);
     const system = labPrompt({ title: lab.title, goal, concept: lab.description, instructions: lab.instructions,
       state: { lab_constants: constants, ...cleanState(input.state) } });
-    return { system, history, question, labId: lab.id };
+    // the course PDFs (lab manual, circuits textbook, physics notes) belong to the physics labs only
+    return { system, history, question, labId: lab.id, physics: engine.subject === 'physics' };
   });
 }
 
 export function createNourChain(db) {
-  const retriever = new LabRetriever({ db });
+  const retriever = new LabRetriever({ db }), courseRetriever = new CourseRetriever({ db });
   const answer = RunnableSequence.from([nourPrompt, RunnableLambda.from((m, config) => chatModel().invoke(m, config)), RunnableLambda.from(parseAnswer)]);
   return RunnableSequence.from([
     loadContext(db),
     RunnablePassthrough.assign({
       docs: RunnableLambda.from((i, config) => retriever.invoke(i.question, { ...config, configurable: { ...config?.configurable, labId: i.labId } }))
     }),
-    RunnablePassthrough.assign({ context: RunnableLambda.from(i => formatDocs(i.docs)) }),
+    // physics labs with an indexed course: retrieve passages and add the origin rules; everything else is unchanged
+    RunnablePassthrough.assign({ courseDocs: RunnableLambda.from(async (i, config) => (i.physics && courseCount(db) ? courseRetriever.invoke(i.question, config) : null)) }),
+    RunnablePassthrough.assign({
+      context: RunnableLambda.from(i => formatDocs(i.docs)),
+      course: RunnableLambda.from(i => (i.courseDocs ? courseRules(i.courseDocs) : ''))
+    }),
     RunnablePassthrough.assign({ answer }),
-    RunnableLambda.from(i => ({
+    RunnableLambda.from(i => {
+      const split = i.courseDocs ? splitOrigin(i.answer.text, i.courseDocs) : null;
+      return {
       ...i.answer,
+      ...(split ? { text: split.text, ...(split.course ? { course: split.course } : {}) } : {}),
       sources: [...new Map(i.docs.map(d => [d.metadata.lab_id, { labId: d.metadata.lab_id, title: d.metadata.title }])).values()]
-    }))
+      };
+    })
   ]);
 }

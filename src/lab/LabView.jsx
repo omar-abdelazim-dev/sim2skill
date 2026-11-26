@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import CORE from './core.js';
 import { S, rt, ACT, useLab, shown, subscribe, voiceAvailable, chatOf, labContext, labFallback } from './store.js';
 import { benchSVG, partIcon, plotScope } from './draw.js';
@@ -71,6 +71,14 @@ function Avatar() {
   );
 }
 
+/** Where Nour's answer came from: the student's course material (with pages) or general knowledge. */
+function CourseTag({ course }) {
+  if (course.origin === 'general') return <p className="nsrc general">Not from your course material. General knowledge, so double-check it.</p>;
+  const seen = new Set(), refs = [];
+  for (const s of course.sources || []) { const k = s.source + '|' + s.page; if (!seen.has(k)) { seen.add(k); refs.push(s); } }
+  return <p className="nsrc course">From your course material{refs.length ? ' · ' : ''}{refs.map(s => `${s.source}, p. ${s.page}`).join(' · ')}</p>;
+}
+
 function LabChat({ folded }) {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -89,14 +97,14 @@ function LabChat({ folded }) {
     try { const lc = labContext(); reply = await askNour({ kind: 'lab', history: chatOf(S.exp), ctx: lc, labId: S.lab?.id || S.exp, state: lc.state, onText: t => setStream(t), signal: c.signal }); } catch (err) { reply = null; }
     if (c.signal.aborted) return;
     setBusy(false); setStream('');
-    ACT.nourSays(reply && reply.text ? reply.text : labFallback(text));
+    if (reply && reply.text) ACT.nourSays(reply.text, reply.course); else ACT.nourSays(labFallback(text));
   }
   const mode = nourMode();
   const shownMsgs = folded ? chat.filter(m => m.role === 'nour').slice(-1) : chat;
   return (
     <>
       <div className={'nchat-log' + (folded ? ' folded' : '')} ref={logRef} aria-live="polite">
-        {shownMsgs.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text}</p>)}
+        {shownMsgs.map((m, i) => <Fragment key={i}><p className={'nmsg ' + m.role}>{m.text}</p>{!folded && m.course && <CourseTag course={m.course} />}</Fragment>)}
         {busy && <p className="nmsg nour">{stream || <span className="dots" aria-label="Nour is thinking"><i /><i /><i /></span>}</p>}
       </div>
       <form className="nchat-input" onSubmit={send}>

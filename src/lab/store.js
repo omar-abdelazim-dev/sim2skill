@@ -47,14 +47,14 @@ export function speak(text) {
   }
 }
 export function stopVoice() { try { if (caps.tts) caps.tts.stop(); if (canBrowserSpeak) speechSynthesis.cancel(); } catch (e) { /* ignore */ } setSpeaking(false); }
-function say(text, aloud) { S.say = text; pushChat('nour', text); if (aloud) speak(text); else { clearTimeout(speakTimer); setSpeaking(false); } }
+function say(text, aloud, course) { S.say = text; pushChat('nour', text, course); if (aloud) speak(text); else { clearTimeout(speakTimer); setSpeaking(false); } }
 
 /* ---------- talking with Nour inside a lab ---------- */
 export const chatOf = exp => S.chat[exp] || (S.chat[exp] = []);
-export function pushChat(role, text) {
+export function pushChat(role, text, course) {
   if (!text) return; const c = chatOf(S.exp), last = c[c.length - 1];
   if (last && last.role === role && last.text === text) return;
-  c.push({ role, text }); if (c.length > 40) c.splice(0, c.length - 40);
+  c.push(course ? { role, text, course } : { role, text }); if (c.length > 40) c.splice(0, c.length - 40);
 }
 const round = v => typeof v === 'number' ? Math.round(v * 1000) / 1000 : v;
 /** What Nour knows about the bench right now: the same state the detector reads. */
@@ -185,7 +185,7 @@ export const ACT = {
   voice() { S.voice = !S.voice; if (!S.voice) stopVoice(); bump(); },
   // the student typed to Nour: record it; Nour's reply goes through say() so captions and voice still work
   userSays(text) { pushChat('user', text); logLine(`Student asked Nour: ${text.slice(0, 60)}`); bump(); },
-  nourSays(text) { say(text, true); bump(); },
+  nourSays(text, course) { say(text, true, course); bump(); },
   ask(i) { const a = EXPERIMENTS[S.exp].asks[+i]; pushChat('user', a[0]); logLine(`Student asked: ${a[0]}`); say(a[1], true); bump(); },
   answer(i) { if (!S.question || S.question.picked !== null) return; S.question.picked = +i; const c = EXPERIMENTS[S.exp].check;
     logLine(`Check question answered ${+i === c.correct ? 'correctly' : 'incorrectly'}`); say(+i === c.correct ? c.right : c.wrong, true); bump(); },

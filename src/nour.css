@@ -113,3 +113,9 @@ html:is([data-theme],:not([data-theme])){
     .nour-hud .ladder li{padding:3px 6px;font-size:10px}
   }
 }
+
+/* Where an answer came from. Physics labs only: course answers list their pages, outside answers say so. */
+.nchat-log .nsrc{margin:-1px 0 4px 6px;max-width:88%;align-self:flex-start;padding:0;font:500 11.5px/1.35 var(--sans);letter-spacing:-.003em;color:var(--ink-muted);overflow-wrap:anywhere}
+.nchat-log .nsrc::before{content:"";display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:var(--good);vertical-align:1px}
+.nchat-log .nsrc.general{color:var(--warn)}
+.nchat-log .nsrc.general::before{background:var(--warn)}
