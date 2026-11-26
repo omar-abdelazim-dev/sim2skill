@@ -102,7 +102,7 @@ function LabChat({ folded }) {
       <form className="nchat-input" onSubmit={send}>
         <label htmlFor="nour-text" className="sr-only">Ask Nour</label>
         <input id="nour-text" value={draft} onChange={e => setDraft(e.target.value)} placeholder="Ask Nour about your circuit…" autoComplete="off" maxLength={500} />
-        <button type="submit" className="hbtn small send-n" disabled={!draft.trim() || busy}>Send</button>
+        <button type="submit" className="nsend" aria-label="Send" title="Send" disabled={!draft.trim() || busy}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4.5M4.8 9.6 10 4.4l5.2 5.2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
       </form>
       {!folded && <p className="nchat-mode">{mode === 'claude' ? 'Answers with Claude, from your bench state' : mode === 'server' ? 'Gemini answers from your bench state' : 'Offline answers from your bench state'}</p>}
     </>

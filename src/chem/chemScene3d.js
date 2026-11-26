@@ -186,6 +186,7 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
   const stopHold = () => { clearInterval(holdTimer); holdTimer = null; };
   function onDown(e) {
     down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false, target: pick(e) };
+    if (down.target?.userData.grab) { controls.enabled = false; try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
     if (mode === 'walk') try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
     // Holding the stopcock streams titrant; a short click is one drop.
     if (down.target?.userData.hold) { onAction(down.target.userData.action); holdTimer = setInterval(() => onAction(down?.target?.userData.hold), 300); }
@@ -194,6 +195,8 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
     if (down) {
       const dx = e.clientX - down.lx, dy = e.clientY - down.ly; down.lx = e.clientX; down.ly = e.clientY;
       if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) { down.moved = true; stopHold(); }
+      const g = down.target?.userData.grab;
+      if (g && down.moved) { if (!carry) { carry = makeCarry(g); tip.hidden = true; el.style.cursor = 'grabbing'; } down.near = moveCarry(e, g); return; }
       if (mode === 'walk' && down.moved) { yaw -= dx * 0.005; pitch = Math.max(-1.1, Math.min(0.8, pitch - dy * 0.004)); }
       return;
     }
@@ -201,6 +204,13 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
   }
   function onUp(e) {
     const d = down; down = null; stopHold();
+    if (carry) {
+      scene.remove(carry); carry.traverse(o => { o.geometry?.dispose(); if (o.material && !shared.has(o.material)) o.material.dispose(); }); carry = null;
+      dropRing.visible = false; controls.enabled = mode === 'orbit'; el.style.cursor = '';
+      if (d?.near) onAction(d.target.userData.action);
+      return;
+    }
+    if (d?.target?.userData.grab) controls.enabled = mode === 'orbit';
     if (!d || d.moved) return;
     const o = pick(e);
     if (o && o === d.target && !o.userData.hold) onAction(o.userData.action); // hold targets already fired on pointerdown
@@ -224,6 +234,47 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
   const anims = [];
   const animate = (dur, step, done) => { if (REDUCED) { step(1); done?.(); return; } anims.push({ t0: performance.now(), dur, step, done }); };
   const rig = kind === 'titration' ? buildTitration() : buildKinetics();
+
+  // ---------- Nour: the same instructor robot as the physics rooms, hovering behind the bench ----------
+  const botM = { dark: M(0x1E2A30, { roughness: 0.4 }), face: M(0x2B424C, { roughness: 0.3 }), eye: new T.MeshBasicMaterial({ color: 0xF2B705 }), lamp: new T.MeshBasicMaterial({ color: 0x8FA6B0 }) };
+  Object.values(botM).forEach(m => shared.add(m));
+  const sph = (r, m, x, y, z, p) => add(new T.SphereGeometry(r, 20, 16), m, x, y, z, p, false);
+  const bot = new T.Group(); bot.scale.setScalar(0.36); scene.add(bot);
+  const BOT = { x: 0.3, y: 1.7, z: -0.85 }; // above the bench, just right of centre, facing the student (as in the physics rooms)
+  bot.position.set(BOT.x, BOT.y, BOT.z);
+  cyl(0.2, 0.12, 0.38, mat.yellow, 0, -0.44, 0, bot); cyl(0.06, 0.06, 0.1, mat.steel, 0, -0.21, 0, bot);
+  box(0.62, 0.46, 0.44, botM.dark, 0, 0.06, 0, bot); box(0.5, 0.2, 0.02, botM.face, 0, 0.11, 0.225, bot, false);
+  sph(0.055, botM.eye, -0.13, 0.11, 0.24, bot); sph(0.055, botM.eye, 0.13, 0.11, 0.24, bot);
+  const botMouth = box(0.18, 0.03, 0.02, mat.white, 0, -0.08, 0.225, bot, false);
+  [-0.33, 0.33].forEach(x => { cyl(0.07, 0.07, 0.05, mat.yellow, x, 0.06, 0, bot).rotation.z = Math.PI / 2; sph(0.07, mat.yellow, x * 0.85, -0.4, 0, bot); });
+  cyl(0.012, 0.012, 0.16, mat.steel, 0, 0.37, 0, bot); sph(0.05, botM.lamp, 0, 0.47, 0, bot);
+  label(bot, 0, 0.72, 0, 0.8, true).set('Nour');
+  hit(bot, [0.8, 1.2, 0.6], [0, -0.05, 0], { action: { type: 'nour' }, tip: () => 'Nour, your lab instructor: click to ask for help' });
+  let speaking = false;
+
+  // ---------- grabbing: drag a bottle onto the burette or flask ----------
+  const grabPlane = new T.Plane(new T.Vector3(0, 1, 0), 0), grabPoint = new T.Vector3();
+  const dropRing = add(new T.TorusGeometry(0.16, 0.012, 10, 48), new T.MeshBasicMaterial({ color: 0xF2B705, transparent: true, opacity: 0.85 }), 0, 0, 0, scene, false);
+  dropRing.rotation.x = Math.PI / 2; dropRing.visible = false;
+  let carry = null;
+  function makeCarry(g) {
+    const c = new T.Group();
+    cyl(0.05, 0.055, 0.17, M(g.look, { roughness: 0.3, transparent: true, opacity: 0.95 }), 0, 0.085, 0, c);
+    if (g.band !== undefined) cyl(0.0525, 0.0525, 0.04, M(g.band), 0, 0.08, 0, c, false);
+    cyl(0.025, 0.03, 0.04, mat.black, 0, 0.19, 0, c);
+    scene.add(c); return c;
+  }
+  function moveCarry(e, g) {
+    const r = el.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera); grabPlane.constant = -(g.y + 0.32);
+    if (!ray.ray.intersectPlane(grabPlane, grabPoint)) return false;
+    carry.position.set(grabPoint.x, g.y + 0.32 + Math.sin(performance.now() / 160) * 0.01, grabPoint.z);
+    const near = Math.hypot(grabPoint.x - g.to[0], grabPoint.z - g.to[1]) < 0.3;
+    dropRing.visible = true; dropRing.position.set(g.to[0], g.what === 'burette' ? g.y + 1.62 : g.y + 0.02, g.to[1]);
+    dropRing.material.opacity = near ? 1 : 0.45; dropRing.scale.setScalar(near ? 1.15 : 1);
+    carry.rotation.z = near ? -0.6 : 0; // tilts to pour when it is over the target
+    return near;
+  }
 
   function buildTitration() {
     const c = config, Z = -0.15, Y = 0.96; // bench surface
@@ -273,11 +324,11 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
     const wx = -0.85; cyl(0.055, 0.06, 0.2, M(0xFFFFFF, { roughness: 0.3, transparent: true, opacity: 0.92 }), wx, Y + 0.1, Z + 0.15); cyl(0.03, 0.03, 0.03, mat.red, wx, Y + 0.215, Z + 0.15);
     rod(new T.Vector3(wx, Y + 0.23, Z + 0.15), new T.Vector3(wx + 0.09, Y + 0.3, Z + 0.15), 0.004, mat.white);
     st.washLabel = label(scene, wx, Y + 0.42, Z + 0.15, 0.7);
-    hit(scene, [0.18, 0.34, 0.18], [wx, Y + 0.16, Z + 0.15], { action: { type: 'rinse' }, tip: () => st.tipRinse });
+    hit(scene, [0.18, 0.34, 0.18], [wx, Y + 0.16, Z + 0.15], { action: { type: 'rinse' }, tip: () => st.tipRinse, grab: { to: [0, Z], y: Y, look: 0xFFFFFF, what: 'burette' } });
     const tx = -1.2; cyl(0.07, 0.075, 0.22, M(0x2E6FD1, { roughness: 0.25, transparent: true, opacity: 0.85 }), tx, Y + 0.11, Z + 0.05); cyl(0.035, 0.035, 0.04, mat.black, tx, Y + 0.24, Z + 0.05);
     box(0.1, 0.07, 0.002, mat.paper, tx, Y + 0.12, Z + 0.126, scene, false);
     st.fillLabel = label(scene, tx, Y + 0.44, Z + 0.05, 0.7);
-    hit(scene, [0.2, 0.34, 0.2], [tx, Y + 0.16, Z + 0.05], { action: { type: 'fill' }, tip: () => st.tipFill });
+    hit(scene, [0.2, 0.34, 0.2], [tx, Y + 0.16, Z + 0.05], { action: { type: 'fill' }, tip: () => st.tipFill, grab: { to: [0, Z], y: Y, look: 0x2E6FD1, what: 'burette' } });
     // indicator dropper bottles
     st.bottles = {};
     c.indicators.forEach((id, i) => {
@@ -286,7 +337,7 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
       const sticker = cyl(0.0425, 0.0425, 0.035, M(new T.Color(indicators[id]?.acidColor || '#ffffff').getHex()), 0, 0.06, 0, g); sticker.castShadow = false;
       const ring = add(new T.TorusGeometry(0.06, 0.006, 8, 32), mat.yellow, 0, 0.004, 0, g, false); ring.rotation.x = Math.PI / 2; ring.visible = false;
       const lb = label(scene, bx, Y + 0.27 + (i % 2) * 0.07, bz, 0.5); // staggered so neighbours never overlap
-      hit(scene, [0.12, 0.22, 0.12], [bx, Y + 0.1, bz], { action: { type: 'indicator', id }, tip: () => st.tipIndicator(id) });
+      hit(scene, [0.12, 0.22, 0.12], [bx, Y + 0.1, bz], { action: { type: 'indicator', id }, tip: () => st.tipIndicator(id), grab: { to: [0, Z], y: Y, look: 0x8A4B12, band: new T.Color(indicators[id]?.acidColor || '#ffffff').getHex(), what: 'flask' } });
       st.bottles[id] = { g, ring, lb };
     });
     // lab notebook: record the endpoint
@@ -315,10 +366,10 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
       for (const [id, b] of Object.entries(st.bottles)) { const on = s.indicator === id; b.ring.visible = on; b.g.position.y = Y + (on ? 0.02 : 0); b.lb.set(s.indicatorNames[id], on ? '#B07A00' : null); }
       st.tipCock = !s.ready ? 'Stopcock: prepare the burette and choose an indicator first' : 'Stopcock: click for one drop, hold to stream';
       st.tipFlask = started ? 'Swirl the flask' : `Flask: ${c.analyteVolume} mL aliquot`;
-      st.tipRinse = started ? 'Locked once titration starts' : 'Rinse the burette with titrant, then fill it';
-      st.tipFill = started ? 'Locked once titration starts' : 'Fill the burette without rinsing';
+      st.tipRinse = started ? 'Locked once titration starts' : 'Drag the wash bottle onto the burette (or click) to rinse with titrant, then fill';
+      st.tipFill = started ? 'Locked once titration starts' : 'Drag onto the burette (or click) to fill it without rinsing';
       st.tipNote = started ? `Record the endpoint at ${s.volume.toFixed(2)} mL` : 'Lab notebook: add titrant first';
-      st.tipIndicator = id => (started ? 'Locked once titration starts' : `Add ${s.indicatorNames[id]} to the flask`);
+      st.tipIndicator = id => (started ? 'Locked once titration starts' : `Drag onto the flask (or click) to add ${s.indicatorNames[id]}`);
       const g = screenFrame('TITRATION  ·  LIVE pH CURVE');
       g.fillStyle = '#FFFFFF'; g.font = '600 64px "Geist Mono", ui-monospace, monospace'; g.fillText(s.pH === null ? '--' : s.pH.toFixed(2), 32, 150);
       g.fillStyle = '#9FB4BF'; g.font = '22px "Geist", system-ui, sans-serif'; g.fillText('pH', 32, 184);
@@ -405,6 +456,10 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
       if (Math.abs(camera.position.x) > 2.4) camera.position.z = Math.max(-0.4, camera.position.z);
       camera.rotation.set(pitch, yaw, 0, 'YXZ');
     } else controls.update();
+    bot.position.y = BOT.y + Math.sin(now / 700) * 0.035;
+    bot.rotation.y = Math.atan2(camera.position.x - bot.position.x, camera.position.z - bot.position.z) * 0.85;
+    botMouth.scale.x = speaking ? 0.6 + Math.abs(Math.sin(now / 90)) * 0.8 : 1;
+    botM.lamp.color.setHex(speaking ? 0xF2B705 : 0x8FA6B0);
     renderer.render(scene, camera);
   }
   function resize() { const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
@@ -415,6 +470,7 @@ export function createChemLab3D(host, { kind, config, onAction, indicators = {} 
     update: s => rig.update(s),
     setMode,
     reset() { setMode(mode); },
+    setSpeaking(v) { speaking = !!v; },
     destroy() {
       cancelAnimationFrame(raf); ro.disconnect(); stopHold();
       el.removeEventListener('pointerdown', onDown); el.removeEventListener('pointermove', onMove); el.removeEventListener('pointerup', onUp); el.removeEventListener('pointerleave', onLeave);

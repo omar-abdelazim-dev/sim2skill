@@ -1,0 +1,115 @@
+/* Nour chat, Apple-style: one material, message bubbles with tails, a capsule composer with a round send button,
+   a segmented hint ladder and chip suggestions. Used by the "Ask Nour" pop-up on every page and by the Nour card in
+   the physics and chemistry rooms. Colours only come from the theme tokens, so light and dark stay as they are.
+   Loaded last; the html:is(...) wrapper matches the specificity of the theme layers so these rules win on order. */
+:root{--nour-user-ink:var(--meter-ink);--nour-spring:cubic-bezier(.32,.72,0,1)}
+html[data-theme="dark"]{--nour-user-ink:#fff}
+
+@keyframes nour-bubble-l{from{opacity:0;transform:translateY(6px) scale(.94)}}
+@keyframes nour-bubble-r{from{opacity:0;transform:translateY(6px) scale(.94)}}
+@keyframes nour-sheet{from{opacity:0;transform:translateY(16px) scale(.94)}}
+
+html:is([data-theme],:not([data-theme])){
+  --n-fill:color-mix(in srgb,var(--ink) 5%,transparent);
+  --n-fill-2:color-mix(in srgb,var(--ink) 9%,transparent);
+  --n-fill-3:color-mix(in srgb,var(--ink) 14%,transparent);
+  --n-sep:color-mix(in srgb,var(--ink) 11%,transparent);
+
+  /* ---------- shared pieces: bubbles, composer, chips ---------- */
+  :is(.chat-log,.nchat-log){gap:4px;scrollbar-width:thin}
+  :is(.chat-log,.nchat-log) :is(.msg p,.nmsg){margin:0;border:0;padding:8px 13px;border-radius:19px;font:400 15px/1.42 var(--sans);letter-spacing:-.012em;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:none;max-width:100%}
+  :is(.chat-log .msg.nour p,.nchat-log .nmsg.nour){background:var(--n-fill-2);color:var(--ink);border-bottom-left-radius:6px;transform-origin:0 100%;animation:nour-bubble-l .38s var(--nour-spring)}
+  :is(.chat-log .msg.user p,.nchat-log .nmsg.user){background:var(--btn);color:var(--nour-user-ink);border-bottom-right-radius:6px;transform-origin:100% 100%;animation:nour-bubble-r .38s var(--nour-spring)}
+  .nchat-log .nmsg.nour{align-self:flex-start;max-width:88%}
+  .nchat-log .nmsg.user{align-self:flex-end;max-width:82%}
+  .chat-log .msg{max-width:86%}
+  .chat-log .msg.user{max-width:80%}
+  :is(.chat-log .msg.user + .msg.nour,.chat-log .msg.nour + .msg.user,.nchat-log .nmsg.user + .nmsg.nour,.nchat-log .nmsg.nour + .nmsg.user){margin-top:8px}
+  :is(.chat-log,.nchat-log) .dots i{background:var(--ink-muted)}
+
+  :is(.chat-input,.nchat-input){display:flex;align-items:center;gap:6px;margin:0;padding:4px 4px 4px 16px;border:0;border-radius:22px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--n-sep);transition:box-shadow .2s ease}
+  :is(.chat-input,.nchat-input):focus-within{box-shadow:inset 0 0 0 1.5px var(--meter),0 0 0 4px color-mix(in srgb,var(--meter) 18%,transparent)}
+  :is(.chat-input,.nchat-input) input{flex:1;min-width:0;height:34px;padding:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;color:var(--ink);font:400 15px/1.2 var(--sans);letter-spacing:-.012em;outline:none}
+  :is(.chat-input,.nchat-input) input:focus,:is(.chat-input,.nchat-input) input:focus-visible{outline:none;border:0;box-shadow:none}
+  :is(.chat-input,.nchat-input) input::placeholder{color:var(--ink-muted);opacity:1}
+  .nsend{flex:none;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:var(--btn);color:var(--nour-user-ink);cursor:pointer;transition:transform .18s var(--nour-spring),background-color .2s,opacity .2s}
+  .nsend svg{width:17px;height:17px}
+  .nsend:hover:not(:disabled){background:var(--btn-hover)}
+  .nsend:active:not(:disabled){transform:scale(.88)}
+  .nsend:disabled{background:var(--n-fill-2);color:var(--ink-muted);cursor:default}
+  .nsend:focus-visible{outline:2px solid var(--meter);outline-offset:2px}
+
+  :is(.chat-suggestions button,.nour-hud .row .hbtn){display:inline-flex;align-items:center;min-height:32px;height:auto;padding:6px 13px;border:0;border-radius:999px;background:var(--n-fill-2);box-shadow:none;color:var(--ink);font:500 13px/1.25 var(--sans);letter-spacing:-.006em;cursor:pointer;transition:background-color .2s,transform .18s var(--nour-spring)}
+  :is(.chat-suggestions button,.nour-hud .row .hbtn):hover:not(:disabled){background:var(--n-fill-3);box-shadow:none;color:var(--ink)}
+  :is(.chat-suggestions button,.nour-hud .row .hbtn):active:not(:disabled){transform:scale(.96)}
+  :is(.chat-suggestions button,.nour-hud .row .hbtn):disabled{opacity:.45;cursor:default}
+
+  /* ---------- "Ask Nour" pop-up ---------- */
+  .nour-pop{width:min(392px,calc(100vw - 32px));height:min(620px,calc(100svh - 120px));border:0;border-radius:26px;background:color-mix(in srgb,var(--surface) 88%,transparent);-webkit-backdrop-filter:blur(30px) saturate(180%);backdrop-filter:blur(30px) saturate(180%);box-shadow:0 0 0 .5px var(--n-sep),inset 0 1px 0 color-mix(in srgb,#fff 35%,transparent),0 2px 6px -2px rgba(0,0,0,.12),0 32px 72px -20px rgba(0,0,0,.42);animation:nour-sheet .45s var(--nour-spring)}
+  .nour-pop .chat{background:transparent;border:0;box-shadow:none;border-radius:0;height:auto}
+  .nour-pop .chat-head{gap:11px;padding:16px 58px 13px 18px;background:transparent;border-bottom:.5px solid var(--n-sep)}
+  .nour-pop .chat-head .avatar{width:40px;height:40px;padding:4px;border-radius:13px;background:var(--n-fill-2)}
+  .nour-pop .chat-head .who b{font:600 17px/1.2 var(--sans);letter-spacing:-.024em;color:var(--ink)}
+  .nour-pop .chat-head .who span{display:flex;align-items:center;gap:6px;margin-top:2px;font:400 12.5px/1.3 var(--sans);letter-spacing:-.003em;text-transform:none;color:var(--ink-muted)}
+  .nour-pop .chat-head .who span::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent)}
+  .nour-pop .chat .ghost{min-height:28px;padding:5px 11px;border:0;border-radius:999px;background:var(--n-fill-2);box-shadow:none;color:var(--ink-soft);font:500 12px/1.2 var(--sans);letter-spacing:0;text-transform:none}
+  .nour-pop .chat .ghost[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+  .nour-pop-close{top:17px;right:16px;display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--n-fill-2);color:var(--ink-soft);font:400 20px/1 var(--sans);transition:background-color .2s,transform .18s var(--nour-spring)}
+  .nour-pop-close:hover{background:var(--n-fill-3);color:var(--ink)}
+  .nour-pop-close:active{transform:scale(.9)}
+  .nour-pop .chat-log{padding:16px 14px 10px}
+  .nour-pop .msg p{font-size:15px;line-height:1.42}
+  .nour-pop .lab-picks{display:flex;flex-direction:column;gap:0;margin-top:6px;border-radius:16px;overflow:hidden;background:var(--n-fill)}
+  .nour-pop .pick{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:11px 36px 11px 14px;border:0;border-radius:0;background:transparent;box-shadow:none;position:relative;text-align:left;transition:background-color .2s}
+  .nour-pop .pick + .pick{box-shadow:inset 0 .5px 0 var(--n-sep)}
+  .nour-pop .pick::after{content:"";position:absolute;right:15px;top:50%;width:7px;height:7px;border-top:1.8px solid var(--ink-muted);border-right:1.8px solid var(--ink-muted);transform:translateY(-50%) rotate(45deg)}
+  .nour-pop .pick:hover:not(:disabled){background:var(--n-fill-2);box-shadow:none}
+  .nour-pop .pick + .pick:hover:not(:disabled){box-shadow:inset 0 .5px 0 var(--n-sep)}
+  .nour-pop .pick .t{font:600 14.5px/1.3 var(--sans);letter-spacing:-.016em;color:var(--ink)}
+  .nour-pop .pick .d{font:400 12.5px/1.4 var(--sans);color:var(--ink-muted)}
+  .nour-pop .chat-suggestions{display:flex;flex-wrap:wrap;gap:6px;padding:2px 14px 10px}
+  .nour-pop .chat-input{margin:4px 12px 12px;flex-shrink:0}
+  .nour-pop .chat-input input,.nour-pop .chat-input input:focus,.nour-pop .chat-input input:focus-visible{height:34px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;outline:none}
+  .nour-pop .msg:has(.lab-picks){max-width:100%}
+  .nour-pop .chat-head .who{min-width:0}
+  .nour-pop .chat-head .who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;position:relative;padding-left:13px}
+  .nour-pop .chat-head .who span::before{position:absolute;left:0;top:50%;transform:translateY(-50%)}
+  .nour-launcher{letter-spacing:-.012em}
+
+  /* ---------- Nour card in the physics and chemistry rooms ---------- */
+  .nour-hud{padding:14px 14px 12px;border-radius:22px}
+  .nour-hud .nh-top{gap:10px}
+  .nour-hud .nh-top .avatar{width:36px;height:36px;padding:3px;border-radius:11px;background:var(--n-fill-2)}
+  .nour-hud .nh-who b{font:600 16px/1.2 var(--sans);letter-spacing:-.022em;color:var(--ink)}
+  .nour-hud .nh-who span{margin-top:1px;font:400 12px/1.3 var(--sans);letter-spacing:-.003em;text-transform:none;color:var(--ink-muted)}
+  .nour-hud .ladder{flex:0 1 auto;margin:0 0 0 auto;padding:2px;gap:0;border-radius:9px;background:var(--n-fill-2);list-style:none;display:flex}
+  .nour-hud .ladder li{flex:0 0 auto;padding:4px 8px;border:0;border-radius:7px;background:transparent;color:var(--ink-soft);font:500 11px/1.2 var(--sans);letter-spacing:-.004em;text-transform:none;transition:background-color .25s,color .25s}
+  .nour-hud .ladder li.on{background:var(--meter);color:var(--meter-ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+  .nour-hud .ladder li.good{background:var(--good);color:#06130D}
+  .nour-hud .hud-icon.fold{width:28px;height:28px;border-radius:50%;background:var(--n-fill-2);box-shadow:none;color:var(--ink-soft);font:400 15px/1 var(--sans);backdrop-filter:none;-webkit-backdrop-filter:none}
+  .nour-hud .hud-icon.fold:hover{background:var(--n-fill-3);color:var(--ink);box-shadow:none}
+  .nour-hud .nchat-log{margin-top:12px;padding:0 2px 2px 0}
+  .nour-hud .nchat-log .nmsg{font-size:14.5px;line-height:1.42}
+  .nour-hud .nchat-input{margin-top:10px}
+  .nour-hud .nchat-input input,.nour-hud .nchat-input input:focus{border:0;background:transparent;box-shadow:none;outline:none}
+  .nour-hud .nchat-mode{display:flex;align-items:center;gap:6px;margin:7px 4px 0;font:400 11.5px/1.3 var(--sans);color:var(--ink-muted)}
+  .nour-hud .nchat-mode::before{content:"";flex:none;width:6px;height:6px;border-radius:50%;background:var(--good)}
+  .nour-hud .row{margin-top:10px;gap:6px;display:flex;flex-wrap:wrap}
+  .nour-hud .check{border-top:.5px solid var(--n-sep)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  html:is([data-theme],:not([data-theme])){
+    :is(.chat-log .msg p,.nchat-log .nmsg),.nour-pop{animation:none}
+    .nsend,.nour-pop-close,:is(.chat-suggestions button,.nour-hud .row .hbtn){transition:none}
+  }
+}
+@media (prefers-reduced-transparency:reduce){
+  html:is([data-theme],:not([data-theme])) .nour-pop{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+}
+@media (max-width:600px){
+  html:is([data-theme],:not([data-theme])){
+    :is(.chat-input,.nchat-input) input{font-size:16px}
+    .nour-hud .ladder li{padding:3px 6px;font-size:10px}
+  }
+}

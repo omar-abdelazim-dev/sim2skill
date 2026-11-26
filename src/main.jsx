@@ -7,4 +7,5 @@ createRoot(document.getElementById('root')).render(<App />);
 
 import './platform/platform.css';
 import './theme.css'; // light mode layer
-import './theme-dark.css'; // dark mode (original colours), must load last
+import './theme-dark.css'; // dark mode (original colours)
+import './nour.css'; // Nour chat design, token-only colours, must load last

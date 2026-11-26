@@ -50,27 +50,9 @@
 /* ---- Immersive chemistry room: full screen like the physics labs, panels float over the 3D room ---- */
 body.chem-immersive-on{overflow:hidden}
 body.chem-immersive-on .platform-nav{display:none}
-.chem-page.chem-immersive{position:fixed;inset:0;z-index:40;max-width:none;width:auto;margin:0;padding:0;overflow:hidden;background:var(--paper)}
-.chem-page.chem-immersive .chem-stage{position:absolute;inset:0;height:auto;margin:0;border:0;border-radius:0;box-shadow:none}
-.chem-page.chem-immersive .chem-top{position:absolute;top:16px;left:16px;right:16px;z-index:6;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin:0;pointer-events:none}
-.chem-page.chem-immersive .chem-top>*{pointer-events:auto}
-.chem-page.chem-immersive .chem-top>div:nth-child(2){flex:0 1 460px;margin-right:auto;padding:14px 18px;border-radius:14px;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--line-c);box-shadow:var(--shadow-md,0 12px 32px rgba(0,0,0,.2));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-.chem-page.chem-immersive .chem-top h1{font-size:22px;line-height:1.15;margin:4px 0}
-.chem-page.chem-immersive .chem-top p{font-size:14px;line-height:1.4;margin:0;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .chem-back{height:44px;padding:0 18px;border-radius:999px;border:1px solid var(--line-c);background:var(--surface);color:var(--ink);font:500 13px/1 var(--font-mono,monospace);letter-spacing:.06em;cursor:pointer;box-shadow:var(--shadow-sm,none)}
 .chem-back:hover{border-color:var(--meter)}
-.chem-page.chem-immersive .chem-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;max-width:560px}
-.chem-page.chem-immersive .chem-hud{top:auto;bottom:64px;left:50%;right:auto;transform:translateX(-50%);justify-content:center;max-width:calc(100vw - 840px);min-width:300px}
-.chem-page.chem-immersive .chem-stage-hint{bottom:16px}
-.chem-page.chem-immersive .chem-layout.with-stage{position:absolute;top:104px;right:16px;bottom:16px;width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;gap:12px;overflow:auto;z-index:5;margin:0;padding:0 2px 2px 0;pointer-events:none;grid-template:none}
-.chem-page.chem-immersive .chem-layout.with-stage>*{pointer-events:auto;flex:none}
-.chem-page.chem-immersive .chem-panel{background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--line-c);border-radius:14px;box-shadow:var(--shadow-md,0 12px 32px rgba(0,0,0,.2));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:16px}
-.chem-page.chem-immersive .chem-panel h2{font-size:15px}
-.chem-page.chem-immersive .chem-nour{position:fixed;left:16px;bottom:16px;width:min(380px,calc(100vw - 32px));max-height:min(480px,calc(100vh - 220px));display:flex;flex-direction:column;z-index:7}
-.chem-page.chem-immersive .chem-nour .chem-nour-log{flex:1;min-height:80px}
-.chem-page.chem-immersive .chem-info{position:absolute;top:104px;left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 140px);overflow:auto;z-index:8}
 .chem-info-close{position:absolute;top:10px;right:12px;width:32px;height:32px;border-radius:50%;border:1px solid var(--line-c);background:var(--surface);color:var(--ink);cursor:pointer;font-size:18px}
-.chem-page.chem-immersive.panels-hidden .chem-layout.with-stage>:not(.chem-nour),.chem-page.chem-immersive.panels-hidden .chem-top>div:nth-child(2),.chem-page.chem-immersive.panels-hidden .chem-hud{display:none}
 /* Nour panel (both layouts) */
 .chem-nour-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .chem-nour-head div{display:grid;line-height:1.1}
@@ -84,23 +66,45 @@ body.chem-immersive-on .platform-nav{display:none}
 .chem-nour-quick button{border:1px solid var(--line-c);background:transparent;color:var(--ink);border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
 .chem-nour-quick button:hover{border-color:var(--meter)}
 .chem-nour .nmsg.nour{border-left:3px solid var(--meter)}
-@media (max-width:1100px){
-  .chem-page.chem-immersive .chem-hud{max-width:calc(100vw - 32px);bottom:auto;top:150px;left:16px;transform:none;justify-content:flex-start;min-width:0}
-}
-@media (max-width:820px){
-  .chem-page.chem-immersive .chem-top{flex-wrap:wrap}
-  .chem-page.chem-immersive .chem-top>div:nth-child(2){order:3;flex-basis:100%;padding:10px 14px}
-  .chem-page.chem-immersive .chem-top h1{font-size:18px}
-  .chem-page.chem-immersive .chem-top p{-webkit-line-clamp:2}
-  .chem-page.chem-immersive .chem-actions{max-width:none;justify-content:flex-start}
-  .chem-page.chem-immersive .chem-hud{display:none}
-  .chem-page.chem-immersive .chem-layout.with-stage{top:auto;left:0;right:0;bottom:0;width:auto;max-height:46vh;padding:12px;background:color-mix(in srgb,var(--paper) 88%,transparent);border-top:1px solid var(--line-c)}
-  .chem-page.chem-immersive .chem-nour{position:static;width:auto;max-height:none}
-  .chem-page.chem-immersive .chem-stage-hint{display:none}
-}
 .chem-nour-face .face{fill:#1B252B}.chem-nour-face .stem{stroke:#1B252B}.chem-nour-face .eye{fill:#F2B705}
 html[data-theme="dark"] .chem-nour-face .face{fill:#2A3A44}html[data-theme="dark"] .chem-nour-face .stem{stroke:#9FB4BF}
-.chem-page.chem-immersive .chem-actions .home-outline,.chem-page.chem-immersive .chem-views{background:var(--surface);color:var(--ink);border:1px solid var(--line-c);box-shadow:var(--shadow-sm,none)}
-.chem-page.chem-immersive .chem-actions{max-width:780px;flex-wrap:nowrap}
 @media (max-width:1280px){.chem-page.chem-immersive .chem-actions{flex-wrap:wrap;max-width:520px}.chem-page.chem-immersive .chem-layout.with-stage{top:150px}}
 @media (max-width:820px){.chem-page.chem-immersive .chem-actions .home-outline,.chem-page.chem-immersive .chem-actions .home-primary,.chem-page.chem-immersive .chem-views button,.chem-back{min-height:36px;height:auto;padding:6px 12px;font-size:13px}.chem-page.chem-immersive .chem-top>div:nth-child(2) .section-kicker{display:none}.chem-page.chem-immersive .chem-top p{display:none}}
+
+/* ---- Chemistry room in the physics room layout (.immersive / .hud from lab.css) ---- */
+.immersive.chem-room .chem-stage{position:absolute;inset:0;height:auto;margin:0;border:0;border-radius:0;box-shadow:none}
+.immersive.chem-room .chem-hud{top:auto;bottom:18px;left:50%;right:auto;transform:translateX(-50%);justify-content:center;width:max-content;max-width:calc(100vw - 960px);z-index:3}
+.immersive.chem-room .chem-stage-hint{bottom:auto;top:72px;left:50%;transform:translateX(-50%);max-width:min(540px,calc(100vw - 800px));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.immersive.chem-room .chem-layout.with-stage{position:absolute;top:96px;right:16px;bottom:16px;width:min(360px,calc(100vw - 32px));display:flex;flex-direction:column;gap:12px;overflow:auto;z-index:4;margin:0;padding:0 2px 2px 0;pointer-events:none;grid-template:none}
+.immersive.chem-room .chem-layout.with-stage>*{pointer-events:auto;flex:none}
+.immersive.chem-room .chem-panel{background:color-mix(in srgb,var(--surface) 94%,transparent);border:1px solid var(--line-c);border-radius:14px;box-shadow:var(--shadow-md,0 12px 32px rgba(0,0,0,.2));backdrop-filter:blur(12px) saturate(1.2);-webkit-backdrop-filter:blur(12px) saturate(1.2);padding:16px}
+.immersive.chem-room .chem-panel h2{font-size:15px}
+.immersive.chem-room .chem-hud-bottom{pointer-events:none}
+.immersive.chem-room .chem-nour-slot{pointer-events:auto;width:min(400px,calc(100vw - 32px))}
+.immersive.chem-room .chem-nour-hud{max-height:min(470px,calc(100dvh - 260px));display:flex;flex-direction:column}
+.immersive.chem-room .chem-nour-hud .chem-nour-log{flex:1;min-height:70px;max-height:none;overflow:auto}
+.immersive.chem-room .chem-nour-hud .chem-nour-log.folded{min-height:0;max-height:52px;overflow:hidden}
+.immersive.chem-room .chem-info{position:absolute;top:96px;left:50%;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100dvh - 140px);overflow:auto;z-index:8}
+.immersive.chem-room.panels-hidden .chem-layout.with-stage,.immersive.chem-room.panels-hidden .chem-hud,.immersive.chem-room.panels-hidden .chem-nour-slot,.immersive.chem-room.panels-hidden .chem-stage-hint{display:none}
+@media (max-width:1200px){.immersive.chem-room .chem-hud{max-width:calc(100vw - 32px);bottom:auto;top:96px;left:16px;transform:none;justify-content:flex-start}.immersive.chem-room .chem-stage-hint{display:none}}
+@media (max-width:820px){
+  .immersive.chem-room .chem-hud{display:none}
+  .immersive.chem-room .chem-layout.with-stage{top:auto;left:0;right:0;bottom:0;width:auto;max-height:42dvh;padding:12px;background:color-mix(in srgb,var(--paper) 90%,transparent);border-top:1px solid var(--line-c)}
+  .immersive.chem-room .chem-nour-slot{width:auto}
+  .immersive.chem-room .chem-nour-hud{max-height:34dvh}
+}
+
+/* the lab bar sits between the title card and the panel column, like the physics rooms */
+.immersive.chem-room .community-lab-context.chem-ctx{top:118px;left:auto;right:392px;transform:none;max-width:calc(100vw - 830px)}
+.immersive.chem-room .community-lab-context.chem-ctx>span{min-width:0}
+@media (max-width:1200px){.immersive.chem-room .community-lab-context.chem-ctx{top:auto;bottom:16px;left:auto;right:16px;transform:none;max-width:calc(100vw - 460px)}.immersive.chem-room .community-lab-context.chem-ctx>span{display:none}}
+@media (max-width:820px){.immersive.chem-room .community-lab-context.chem-ctx{display:none}}
+.immersive.chem-room.panels-hidden .community-lab-context.chem-ctx{display:none}
+/* form controls inside the floating panels */
+.immersive.chem-room .chem-panel select,.immersive.chem-room .chem-panel input[type=number],.immersive.chem-room .chem-panel input[type=text]{width:100%;height:38px;padding:0 12px;border:0;border-radius:10px;background:color-mix(in srgb,var(--ink) 6%,transparent);box-shadow:inset 0 0 0 1px var(--line-c);color:var(--ink);font:400 14px/1.2 var(--sans);appearance:none;-webkit-appearance:none}
+.immersive.chem-room .chem-panel select{padding-right:34px;background-image:linear-gradient(45deg,transparent 50%,var(--ink-muted) 50%),linear-gradient(135deg,var(--ink-muted) 50%,transparent 50%);background-position:calc(100% - 18px) 16px,calc(100% - 13px) 16px;background-size:5px 5px;background-repeat:no-repeat;cursor:pointer}
+.immersive.chem-room .chem-panel :is(select,input):focus-visible{outline:none;box-shadow:inset 0 0 0 1.5px var(--meter),0 0 0 4px color-mix(in srgb,var(--meter) 18%,transparent)}
+.immersive.chem-room .chem-panel label:has(>select,>input[type=number]){display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-soft)}
+.immersive.chem-room .chem-panel input[type=checkbox]{accent-color:var(--meter)}
+.immersive.chem-room .title-card{max-width:300px}
+.immersive.chem-room .title-card p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}

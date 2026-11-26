@@ -90,7 +90,7 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
       <form className="chat-input" onSubmit={e => { e.preventDefault(); send(draft); }}>
         <label htmlFor="chat-text" className="sr-only">Message Nour</label>
         <input id="chat-text" ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)} placeholder="What would you like to explore?" autoComplete="off" disabled={disabled} />
-        <button type="submit" className="send" disabled={!draft.trim() || busy || disabled}>Send</button>
+        <button type="submit" className="nsend" aria-label="Send" title="Send" disabled={!draft.trim() || busy || disabled}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4.5M4.8 9.6 10 4.4l5.2 5.2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></button>
       </form>
     </section>
   );

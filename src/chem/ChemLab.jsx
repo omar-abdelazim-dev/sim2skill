@@ -2,6 +2,7 @@
 // fallback. The server runs the simulation because the unknown (concentration, Ea) must never reach the
 // browser; this view only draws and records.
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../platform/api.js';
 import { askNour, nourMode, onNourMode } from '../nour.js';
 import { REAGENTS, INDICATORS, indicatorColor, hint as tHint, labContext as tContext } from '../../shared/engines/titration.js';
@@ -11,6 +12,8 @@ import { QuizDialog } from '../platform/Quiz.jsx';
 import './chem.css';
 
 const WEBGL = typeof document !== 'undefined' && hasWebGL();
+// Links the 3D robot and the Nour panel: clicking the robot opens the chat; the robot talks while Nour answers.
+const nourBus = { open: null, speaking: null };
 
 // ---------- The 3D room ----------
 // Mounts the scene once per lab; later renders only push new state. Clicks in the room call onAction.
@@ -18,7 +21,7 @@ function ChemStage({ kind, config, state, onAction, mode, hud, hint, onFailure }
   const host = useRef(null), room = useRef(null), act = useRef(onAction);
   act.current = onAction;
   useEffect(() => {
-    try { room.current = createChemLab3D(host.current, { kind, config, indicators: INDICATORS, onAction: a => act.current(a) }); }
+    try { room.current = createChemLab3D(host.current, { kind, config, indicators: INDICATORS, onAction: a => (a.type === 'nour' ? nourBus.open?.() : act.current(a)) }); nourBus.speaking = v => room.current?.setSpeaking(v); }
     catch (e) { console.error('3D chemistry room failed:', e); onFailure(); return; }
     return () => { try { room.current?.destroy(); } catch (e) { console.error('3D room cleanup failed:', e); } room.current = null; };
   }, []);
@@ -66,12 +69,14 @@ const QUICK = {
   titration: ['What should I do next?', 'Which indicator should I choose?', 'How do I calculate the concentration?'],
   kinetics: ['What should I do next?', 'How do I find the order?', 'How do I get Ea from my data?']
 };
-function ChemNour({ lab, context, offline, nudge }) {
+function ChemNour({ lab, context, offline, nudge, slot, level = 0, solved = false }) {
   const [log, setLog] = useState([{ role: 'nour', text: `Hi, I'm Nour, your lab instructor. Ask me anything about this ${lab.engine === 'titration' ? 'titration' : 'kinetics experiment'}, or tap a question below.` }]);
   const [draft, setDraft] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(true), [, tick] = useState(0);
-  const box = useRef(null);
+  const box = useRef(null), input = useRef(null);
   useEffect(() => onNourMode(() => tick(x => x + 1)), []);
   useEffect(() => { box.current?.scrollTo(0, box.current.scrollHeight); }, [log, open]);
+  useEffect(() => { nourBus.open = () => { setOpen(true); setTimeout(() => input.current?.focus(), 50); }; return () => { nourBus.open = null; }; }, []);
+  useEffect(() => { nourBus.speaking?.(busy); }, [busy]);
   // When the bench reports a result or a mistake, Nour says it in the chat, like a TA looking over your shoulder.
   useEffect(() => { if (nudge) { setLog(l => (l[l.length - 1]?.text === nudge ? l : [...l, { role: 'nour', text: nudge }])); setOpen(true); } }, [nudge]);
   async function ask(text) {
@@ -85,22 +90,39 @@ function ChemNour({ lab, context, offline, nudge }) {
     setBusy(false);
   }
   const mode = { claude: 'Answers with Claude', server: 'Gemini answers from your bench' }[nourMode()] || 'Offline answers from your bench';
-  return <section className={'chem-panel chem-nour' + (open ? '' : ' folded')} aria-label="Chat with Nour">
-    <header className="chem-nour-head"><NourFace /><div><b>Nour</b><span>LAB INSTRUCTOR</span></div>
-      <button type="button" className="chem-nour-min" aria-expanded={open} aria-label={open ? 'Minimise Nour' : 'Open Nour'} onClick={() => setOpen(!open)}>{open ? '–' : '+'}</button></header>
-    {open ? <>
-      <div className="chem-nour-log" ref={box} aria-live="polite">{log.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text || '…'}</p>)}</div>
-      <form onSubmit={e => { e.preventDefault(); ask(draft); }} className="chem-nour-form"><label className="sr-only" htmlFor="chem-nour-text">Ask Nour</label>
-        <input id="chem-nour-text" value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} placeholder="Ask Nour about your experiment…" />
-        <button className="home-primary" disabled={busy || !draft.trim()}>Send</button></form>
-      <p className="chem-mode">{mode}</p>
-      <div className="chem-nour-quick">{(QUICK[lab.engine] || []).map(q => <button key={q} type="button" disabled={busy} onClick={() => ask(q)}>{q}</button>)}</div>
-    </> : <p className="chem-nour-peek">{log[log.length - 1]?.text}</p>}
+  const shown = open ? log : log.slice(-1);
+  const panel = <section className={(slot ? 'hud-card nour-hud chem-nour-hud' : 'chem-panel chem-nour') + (open ? '' : ' folded')} aria-label="Nour, lab instructor">
+    <div className="nh-top">
+      <NourAvatar speaking={busy} />
+      <div className="nh-who"><b>Nour</b><span>Lab instructor</span></div>
+      <ol className="ladder" aria-label="Hint level">
+        {solved ? <li className="good">Goal reached</li> : ['Nudge', 'Hint', 'Explain'].map((n, i) => <li key={n} className={i + 1 === level ? 'on' : ''} aria-current={i + 1 === level ? 'step' : undefined}>{n}</li>)}
+      </ol>
+      <button type="button" className="hud-icon fold" aria-expanded={open} aria-label={open ? 'Fold Nour' : 'Open Nour'} onClick={() => setOpen(!open)}>{open ? '–' : '+'}</button>
+    </div>
+    <div className={'nchat-log chem-nour-log' + (open ? '' : ' folded')} ref={box} aria-live="polite">{shown.map((m, i) => <p key={i} className={'nmsg ' + m.role}>{m.text || '…'}</p>)}</div>
+    {open && <>
+      <form onSubmit={e => { e.preventDefault(); ask(draft); }} className="nchat-input chem-nour-form"><label className="sr-only" htmlFor="chem-nour-text">Ask Nour</label>
+        <input id="chem-nour-text" ref={input} value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} placeholder="Ask Nour about your experiment…" />
+        <button className="nsend" aria-label="Send" title="Send" disabled={busy || !draft.trim()}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4.5M4.8 9.6 10 4.4l5.2 5.2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></button></form>
+      <p className="nchat-mode">{mode}</p>
+      <div className="row">{(QUICK[lab.engine] || []).map(q => <button key={q} type="button" className="hbtn small ghosty" disabled={busy} onClick={() => ask(q)}>{q}</button>)}</div>
+    </>}
   </section>;
+  return slot ? createPortal(panel, slot) : panel;
+}
+
+// Same face as the physics rooms' Nour.
+function NourAvatar({ speaking }) {
+  return <svg className={'avatar' + (speaking ? ' speaking' : '')} viewBox="0 0 64 64" aria-hidden="true">
+    <line x1="32" y1="4" x2="32" y2="13" stroke="#8FA6B0" strokeWidth="2.5" /><circle className="lamp" cx="32" cy="5" r="4" />
+    <rect className="head" x="7" y="13" width="50" height="44" rx="13" /><rect x="13" y="22" width="38" height="16" rx="8" fill="#2B424C" />
+    <circle className="eye" cx="24" cy="30" r="4.5" /><circle className="eye" cx="40" cy="30" r="4.5" /><rect className="mouth" x="24" y="45" width="16" height="3.4" rx="1.7" />
+  </svg>;
 }
 
 // ---------- Titration ----------
-function Titration({ lab, onSaved, mode, onNo3D }) {
+function Titration({ lab, onSaved, mode, onNo3D, slot }) {
   const c = lab.config, a = REAGENTS[c.analyte], t = REAGENTS[c.titrant];
   const [rinsed, setRinsed] = useState(null), [indicator, setIndicator] = useState(''), [points, setPoints] = useState([]);
   const [endpoint, setEndpoint] = useState(null), [answer, setAnswer] = useState(''), [result, setResult] = useState(null), [level, setLevel] = useState(0), [error, setError] = useState(''), [busy, setBusy] = useState(false);
@@ -151,7 +173,7 @@ function Titration({ lab, onSaved, mode, onNo3D }) {
         : endpoint === null ? 'Add titrant in big steps first, then drop by drop near the colour change. Record the first permanent change.'
           : 'Now calculate: moles of titrant = c × V(L), apply the reaction ratio, divide by the aliquot volume, then undo the dilution.';
   return <>{mode !== '2d' && <ChemStage kind="titration" config={c} state={stage} onAction={onAction} mode={mode} onFailure={onNo3D}
-      hint="Drag to look around · click the wash bottle, an indicator, then the stopcock (hold to stream)"
+      hint="Drag the wash bottle onto the burette and an indicator onto the flask · hold the stopcock to stream"
       hud={<><Chip k="Added" v={`${fmt(volume)} mL`} tone="meter" /><Chip k="pH" v={pH === null ? '—' : fmt(pH)} /><Chip k="Indicator" v={indicator ? INDICATORS[indicator].name : 'none'} /><Chip k="Endpoint" v={endpoint === null ? '—' : `${fmt(endpoint)} mL`} tone={endpoint === null ? '' : 'good'} />
         {notice && <div className="chem-stage-notice" role="status">{notice}</div>}</>} />}
     <div className={'chem-layout' + (mode !== '2d' ? ' with-stage' : '')}>
@@ -198,13 +220,13 @@ function Titration({ lab, onSaved, mode, onNo3D }) {
       <Chart series={[{ name: 'pH', color: '#8fd3ff', line: true, points: points.map(p => [p.v, p.pH]) }]} xLabel={`${t.name} added (mL)`} yLabel="pH" />
       {indicator && <p className="platform-help">{INDICATORS[indicator].name} changes colour between pH {INDICATORS[indicator].low} and {INDICATORS[indicator].high}.</p>}
     </section>
-    <ChemNour lab={lab} context={context} offline={offline} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : notice} />
+    <ChemNour lab={lab} context={context} offline={offline} slot={mode !== '2d' ? slot : null} level={result && !result.success ? level : 0} solved={!!result?.success} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : notice} />
   </div></>;
 }
 
 // ---------- Kinetics ----------
 const RUN_COLORS = ['#8fd3ff', '#f2c94c', '#f08a6c', '#9be38f', '#c7a6ff', '#ff9ed0'];
-function Kinetics({ lab, onSaved, mode, onNo3D }) {
+function Kinetics({ lab, onSaved, mode, onNo3D, slot }) {
   const c = lab.config, rx = REACTIONS[c.reaction];
   const [runs, setRuns] = useState({}), [plot, setPlot] = useState(1), [order, setOrder] = useState(''), [ea, setEa] = useState('');
   const [kelvin, setKelvin] = useState(true), [natural, setNatural] = useState(true), [result, setResult] = useState(null), [level, setLevel] = useState(0), [error, setError] = useState(''), [busy, setBusy] = useState(0);
@@ -260,37 +282,71 @@ function Kinetics({ lab, onSaved, mode, onNo3D }) {
       <h2>{natural ? 'ln k' : 'log₁₀ k'} against 1/T</h2>
       <Chart series={[{ name: 'k', color: '#f2c94c', points: arr }]} fits={arrFit ? [{ ...arrFit, color: '#f2c94c' }] : []} xLabel={`1/T (${kelvin ? 'K⁻¹' : '°C⁻¹'})`} yLabel={natural ? 'ln k' : 'log k'} height={200} />
     </section>
-    <ChemNour lab={lab} context={context} offline={offline} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : ''} />
+    <ChemNour lab={lab} context={context} offline={offline} slot={mode !== '2d' ? slot : null} level={result && !result.success ? level : 0} solved={!!result?.success} nudge={result ? (result.success ? 'Correct. ' : '') + result.hint : ''} />
   </div></>;
 }
 
 export default function ChemLab({ lab, onBack, onSaved }) {
   const Bench = lab.engine === 'titration' ? Titration : Kinetics;
   const [showInfo, setShowInfo] = useState(false), [showQuiz, setShowQuiz] = useState(false), [mode, setMode] = useState(WEBGL ? 'orbit' : '2d'), [no3D, setNo3D] = useState(!WEBGL);
-  const views = [['orbit', '3D room'], ['walk', 'Walk'], ['2d', 'Diagram']].filter(([m]) => m === '2d' || !no3D);
+  const [hidden, setHidden] = useState(false), [slot, setSlot] = useState(null);
+  // Same order and names as the physics rooms: Walk, Orbit, Schematic.
+  const views = [['walk', 'Walk'], ['orbit', 'Orbit'], ['2d', 'Schematic']].filter(([m]) => m === '2d' || !no3D);
   const immersive = mode !== '2d';
-  const [hidden, setHidden] = useState(false);
+  const kindName = lab.engine === 'titration' ? 'Titration' : 'Kinetics';
   // Full-screen room like the physics labs: hide the site navigation and stop page scrolling.
   useEffect(() => {
     document.body.classList.toggle('chem-immersive-on', immersive);
     return () => document.body.classList.remove('chem-immersive-on');
   }, [immersive]);
   useEffect(() => {
-    const key = e => { if (e.key === 'Escape' && showInfo) setShowInfo(false); };
+    const key = e => {
+      if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return;
+      if (e.key === 'Escape' && showInfo) setShowInfo(false);
+      if ((e.key === 'h' || e.key === 'H') && immersive) setHidden(x => !x);
+    };
     addEventListener('keydown', key); return () => removeEventListener('keydown', key);
-  }, [showInfo]);
-  return <main className={'platform-page chem-page' + (immersive ? ' chem-immersive' : '') + (immersive && hidden ? ' panels-hidden' : '')}>
-    <div className="chem-top"><button type="button" className={immersive ? 'chem-back' : 'platform-text'} onClick={onBack}>{immersive ? '← Labs' : '← Back to lab details'}</button>
-      <div><div className="section-kicker">CHEMISTRY · {lab.engine === 'titration' ? 'TITRATION' : 'KINETICS'}</div><h1>{lab.title}</h1><p>{lab.goal}</p></div>
+  }, [showInfo, immersive]);
+  const bench = <Bench lab={lab} onSaved={onSaved} mode={mode} slot={slot} onNo3D={() => { setNo3D(true); setMode('2d'); }} />;
+  const info = showInfo && <section className="chem-panel chem-info" role="dialog" aria-label="Lab instructions">
+    <button type="button" className="chem-info-close" aria-label="Close instructions" onClick={() => setShowInfo(false)}>×</button>
+    <h2>Learning outcomes</h2><p className="preserve-lines">{lab.outcomes}</p><h2>Instructions</h2><p className="preserve-lines">{lab.instructions}</p></section>;
+  const quiz = showQuiz && <QuizDialog lab={lab} onClose={() => setShowQuiz(false)} />;
+
+  if (immersive) return <main className={'immersive chem-room' + (mode === 'walk' ? ' walking' : '') + (hidden ? ' panels-hidden' : '')}>
+    {bench}
+    <div className="hud">
+      <header className="hud-top">
+        <div className="ht-left">
+          <button type="button" className="hud-back" onClick={onBack} aria-label="Leave the lab, back to the lab details">← Labs</button>
+          {!hidden && <div className="hud-card title-card">
+            <span className="eyebrow">Chemistry · {kindName}</span>
+            <h1>{lab.title}</h1>
+            <p>{lab.goal}</p>
+          </div>}
+        </div>
+        <div className="ht-right">
+          <div className="seg dark" role="group" aria-label="View">{views.map(([m, l]) => <button type="button" key={m} aria-pressed={mode === m} onClick={() => setMode(m)}>{l}</button>)}</div>
+          <button type="button" className="hud-icon" aria-pressed={hidden} aria-label={hidden ? 'Show all panels (H)' : 'Hide all panels (H)'} title={hidden ? 'Show all panels (H)' : 'Hide all panels (H)'} onClick={() => setHidden(!hidden)}>{hidden ? '▣' : '◱'}</button>
+        </div>
+      </header>
+      <div className="hud-bottom chem-hud-bottom"><div className="chem-nour-slot" ref={setSlot} /></div>
+    </div>
+    <div className="community-lab-context chem-ctx"><span>{lab.title} <small>by {lab.author?.name || 'Sim2Skill team'}</small></span>
+      <button type="button" onClick={() => setShowInfo(true)}>Lab instructions</button>
+      {lab.quiz?.length > 0 && <button type="button" onClick={() => setShowQuiz(true)}>Take the quiz</button>}</div>
+    {info}{quiz}
+  </main>;
+
+  return <main className="platform-page chem-page">
+    <div className="chem-top"><button type="button" className="platform-text" onClick={onBack}>← Back to lab details</button>
+      <div><div className="section-kicker">CHEMISTRY · {kindName.toUpperCase()}</div><h1>{lab.title}</h1><p>{lab.goal}</p></div>
       <div className="chem-actions">
         <div className="chem-views" role="radiogroup" aria-label="View">{views.map(([m, label]) => <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}>{label}</button>)}</div>
         <button type="button" className="home-outline" aria-expanded={showInfo} onClick={() => setShowInfo(!showInfo)}>Lab instructions</button>
         {lab.quiz?.length > 0 && <button type="button" className="home-primary" onClick={() => setShowQuiz(true)}>Take the quiz</button>}
-        {immersive && <button type="button" className="home-outline" aria-pressed={hidden} onClick={() => setHidden(!hidden)}>{hidden ? 'Show panels' : 'Hide panels'}</button>}
       </div></div>
-    {no3D && WEBGL && <p className="platform-help">The 3D room could not start on this device, so the lab is shown as a diagram.</p>}
-    {showInfo && <section className="chem-panel chem-info" role="dialog" aria-label="Lab instructions">{immersive && <button type="button" className="chem-info-close" aria-label="Close instructions" onClick={() => setShowInfo(false)}>×</button>}<h2>Learning outcomes</h2><p className="preserve-lines">{lab.outcomes}</p><h2>Instructions</h2><p className="preserve-lines">{lab.instructions}</p></section>}
-    <Bench lab={lab} onSaved={onSaved} mode={mode} onNo3D={() => { setNo3D(true); setMode('2d'); }} />
-    {showQuiz && <QuizDialog lab={lab} onClose={() => setShowQuiz(false)} />}
+    {no3D && WEBGL && <p className="platform-help">The 3D room could not start on this device, so the lab is shown as a schematic.</p>}
+    {info}{bench}{quiz}
   </main>;
 }
