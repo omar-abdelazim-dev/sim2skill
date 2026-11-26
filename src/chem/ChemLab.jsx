@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../platform/api.js';
 import { askNour, nourMode, onNourMode } from '../nour.js';
+import { S, ACT, rt, speak, stopVoice, voiceAvailable, useLab } from '../lab/store.js';
 import { REAGENTS, INDICATORS, indicatorColor, hint as tHint, labContext as tContext } from '../../shared/engines/titration.js';
 import { REACTIONS, fitLine, transform, hint as kHint, labContext as kContext } from '../../shared/engines/kinetics.js';
 import { createChemLab3D, hasWebGL } from './chemScene3d.js';
@@ -72,13 +73,16 @@ const QUICK = {
 function ChemNour({ lab, context, offline, nudge, slot, level = 0, solved = false }) {
   const [log, setLog] = useState([{ role: 'nour', text: `Hi, I'm Nour, your lab instructor. Ask me anything about this ${lab.engine === 'titration' ? 'titration' : 'kinetics experiment'}, or tap a question below.` }]);
   const [draft, setDraft] = useState(''), [busy, setBusy] = useState(false), [open, setOpen] = useState(true), [, tick] = useState(0);
+  useLab(); // re-render when the voice switch or the speaking state changes
+  const talking = busy || rt.speaking;
   const box = useRef(null), input = useRef(null);
   useEffect(() => onNourMode(() => tick(x => x + 1)), []);
   useEffect(() => { box.current?.scrollTo(0, box.current.scrollHeight); }, [log, open]);
   useEffect(() => { nourBus.open = () => { setOpen(true); setTimeout(() => input.current?.focus(), 50); }; return () => { nourBus.open = null; }; }, []);
-  useEffect(() => { nourBus.speaking?.(busy); }, [busy]);
+  useEffect(() => { nourBus.speaking?.(talking); }, [talking]);
+  useEffect(() => () => stopVoice(), []);
   // When the bench reports a result or a mistake, Nour says it in the chat, like a TA looking over your shoulder.
-  useEffect(() => { if (nudge) { setLog(l => (l[l.length - 1]?.text === nudge ? l : [...l, { role: 'nour', text: nudge }])); setOpen(true); } }, [nudge]);
+  useEffect(() => { if (nudge) { setLog(l => (l[l.length - 1]?.text === nudge ? l : [...l, { role: 'nour', text: nudge }])); setOpen(true); if (S.voice) speak(nudge); } }, [nudge]);
   async function ask(text) {
     text = text.trim(); if (!text || busy) return;
     const history = [...log, { role: 'user', text }];
@@ -86,14 +90,16 @@ function ChemNour({ lab, context, offline, nudge, slot, level = 0, solved = fals
     const setLast = t => setLog(l => { const c = l.slice(); c[c.length - 1] = { role: 'nour', text: t }; return c; });
     let r = null;
     try { r = await askNour({ kind: 'lab', history, ctx: context(), labId: lab.id, state: context().state, onText: setLast }); } catch { r = null; }
-    setLast(r?.text || offline());
+    const reply = r?.text || offline();
+    setLast(reply);
     setBusy(false);
+    if (S.voice) speak(reply);
   }
   const mode = { claude: 'Answers with Claude', server: 'Gemini answers from your bench' }[nourMode()] || 'Offline answers from your bench';
   const shown = open ? log : log.slice(-1);
   const panel = <section className={(slot ? 'hud-card nour-hud chem-nour-hud' : 'chem-panel chem-nour') + (open ? '' : ' folded')} aria-label="Nour, lab instructor">
     <div className="nh-top">
-      <NourAvatar speaking={busy} />
+      <NourAvatar speaking={talking} />
       <div className="nh-who"><b>Nour</b><span>Lab instructor</span></div>
       <ol className="ladder" aria-label="Hint level">
         {solved ? <li className="good">Goal reached</li> : ['Nudge', 'Hint', 'Explain'].map((n, i) => <li key={n} className={i + 1 === level ? 'on' : ''} aria-current={i + 1 === level ? 'step' : undefined}>{n}</li>)}
@@ -106,7 +112,8 @@ function ChemNour({ lab, context, offline, nudge, slot, level = 0, solved = fals
         <input id="chem-nour-text" ref={input} value={draft} onChange={e => setDraft(e.target.value)} maxLength={500} placeholder="Ask Nour about your experiment…" />
         <button className="nsend" aria-label="Send" title="Send" disabled={busy || !draft.trim()}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4.5M4.8 9.6 10 4.4l5.2 5.2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></button></form>
       <p className="nchat-mode">{mode}</p>
-      <div className="row">{(QUICK[lab.engine] || []).map(q => <button key={q} type="button" className="hbtn small ghosty" disabled={busy} onClick={() => ask(q)}>{q}</button>)}</div>
+      <div className="row">{(QUICK[lab.engine] || []).map(q => <button key={q} type="button" className="hbtn small ghosty" disabled={busy} onClick={() => ask(q)}>{q}</button>)}
+        {voiceAvailable() && <button type="button" className="hbtn small ghosty" aria-pressed={S.voice} onClick={() => { ACT.voice(); if (!S.voice) return; const last = [...log].reverse().find(m => m.role === 'nour' && m.text); if (last) speak(last.text); }}>Voice {S.voice ? 'on' : 'off'}</button>}</div>
     </>}
   </section>;
   return slot ? createPortal(panel, slot) : panel;

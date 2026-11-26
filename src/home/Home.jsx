@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import CardFace from './CardFace.jsx';
 import { openNour } from './NourWidget.jsx';
+import CorridorBackdrop from './CorridorBackdrop.jsx';
 import { LIVE } from '../labs.js';
 
 const DETAILS = {
@@ -12,6 +13,7 @@ const DETAILS = {
 export default function Home({ onIntroDone, onOpenLab, transit }) {
   useEffect(() => { onIntroDone(); }, []);
   return (<>
+    <CorridorBackdrop />
     <main className={'home-v2' + (transit ? ' is-opening' : '')}>
       <section className="home-intro" aria-labelledby="home-title">
         <div className="intro-copy">
