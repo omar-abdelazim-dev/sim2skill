@@ -1,1 +1,3 @@
-export async function api(path,method='GET',data){const r=await fetch('/api/'+path,{method,headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});const value=await r.json().catch(()=>({error:'The server is unavailable. Restart npm run dev.'}));if(!r.ok)throw Error(value.error||'Request failed');return value;}
+// Errors carry the HTTP status and the JSON body (for example { locked: true } or { upgrade: true }).
+export async function api(path,method='GET',data){const r=await fetch('/api/'+path,{method,headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});const value=await r.json().catch(()=>({error:'The server is unavailable. Restart npm run dev.'}));if(!r.ok)throw Object.assign(Error(value.error||'Request failed'),{status:r.status,data:value});return value;}
+export const money=cents=>cents==null?'Custom':'$'+(cents/100).toFixed(cents%100?2:0);

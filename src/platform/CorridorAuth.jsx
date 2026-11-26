@@ -16,7 +16,7 @@ const typing = el => el && (el.matches('input,textarea,select,[contenteditable="
 
 // Sign-in / sign-up page: the existing form floats over a walkable corridor of framed labs.
 export default function CorridorAuth({ onAuth, explore = false }) {
-  const [signup, setSignup] = useState(true), [role, setRole] = useState('student');
+  const [signup, setSignup] = useState(true);
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [entered, setEntered] = useState(false), [exiting, setExiting] = useState(false);
   const [mode, setMode] = useState('walk'), [focus, setFocus] = useState(null), [fallback, setFallback] = useState(false);
@@ -82,7 +82,7 @@ export default function CorridorAuth({ onAuth, explore = false }) {
     e.preventDefault(); setBusy(true); setError('');
     const values = Object.fromEntries(new FormData(e.currentTarget));
     try {
-      const v = await api(signup ? 'signup' : 'login', 'POST', { ...values, role });
+      const v = await api(signup ? 'signup' : 'login', 'POST', values);
       if (!reduced && sceneRef.current) { setExiting(true); await Promise.race([sceneRef.current.exit(), new Promise(r => setTimeout(r, 700))]); }
       onAuth(v.user);
     } catch (err) { setError(err.message); setExiting(false); } finally { setBusy(false); }
@@ -118,7 +118,7 @@ export default function CorridorAuth({ onAuth, explore = false }) {
           <div className="corridor-caption">
             <div className="corridor-kicker"><Line i={2}>{explore ? 'THE LAB GALLERY · 7 OPEN, MORE ON THE WAY' : 'A PLACE FOR EVERY CURIOUS MIND'}</Line></div>
             <h1 className={swapped ? 'swapped' : undefined}><Line i={3} k={headline}>{headline}</Line></h1>
-            <p className="corridor-sub"><Line i={4}>{explore ? 'Click any lab to look closer. Open labs start in one click.' : 'Practise as a student. Share what you know as a tutor.'}</Line></p>
+            <p className="corridor-sub"><Line i={4}>{explore ? 'Click any lab to look closer. Open labs start in one click.' : 'Practise any lab. Create your own and share it with the world.'}</Line></p>
           </div>
           {explore ? <a className="corridor-jump corridor-home" href="#home">← Back home</a> : <button type="button" className="corridor-jump" onClick={() => panelRef.current?.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'start' })}>
             {signup ? 'Create account' : 'Sign in'} ↓
@@ -140,21 +140,15 @@ export default function CorridorAuth({ onAuth, explore = false }) {
         <h2>{signup ? 'Create your account' : 'Sign in'}</h2>
         {nextLab && <p className="corridor-next">After signing in you’ll go straight to <b>{nextLab.title}</b>.</p>}
         {signup && <>
-          <fieldset className="role-choice"><legend>I’m joining as a</legend>
-            {['student', 'tutor'].map(r => <label className={role === r ? 'selected' : ''} key={r}>
-              <input type="radio" name="role" checked={role === r} onChange={() => setRole(r)} />
-              <strong>{r === 'student' ? 'Student' : 'Tutor'}</strong><span>{r === 'student' ? 'Browse & practise' : 'Create & publish'}</span>
-            </label>)}
-          </fieldset>
           <div className="corridor-roles">
-            <div><h3>Students explore.</h3><p>Browse public labs, build circuits, and practise at your own pace.</p></div>
-            <div><h3>Tutors create.</h3><p>Turn your teaching into guided labs and build your tutor profile.</p></div>
+            <div><h3>Practise.</h3><p>Browse public labs, build circuits and titrations, and practise at your own pace.</p></div>
+            <div><h3>Create.</h3><p>Anyone can build a lab, share it publicly or with a private code, and gain followers.</p></div>
           </div>
           <label>Your name<input name="name" required minLength={2} maxLength={80} autoComplete="name" /></label>
         </>}
         <label>Email<input ref={emailRef} name="email" type="email" required maxLength={200} autoComplete="email" /></label>
         <label>Password<input name="password" type="password" required minLength={8} maxLength={200} autoComplete={signup ? 'new-password' : 'current-password'} /></label>
-        <p className="platform-help">At least 8 characters. Your role stays with this account.</p>
+        <p className="platform-help">At least 8 characters. New accounts get 14 days of Pro free.</p>
         {error && <div className="platform-error" role="alert">{error}</div>}
         <button className="home-primary" disabled={busy}>{busy ? 'Please wait…' : signup ? 'Create account' : 'Sign in'}</button>
         <button type="button" className="platform-text" onClick={toggle}>{signup ? 'Already have an account? Sign in' : 'New here? Create an account'}</button>
