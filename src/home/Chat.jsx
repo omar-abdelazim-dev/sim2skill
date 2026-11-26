@@ -7,6 +7,10 @@ import { S, ACT, speak, useLab, voiceAvailable, rt } from '../lab/store.js';
 
 const GREETING = "Hi, I’m Nour. Think of me as your lab partner. Tell me what you’d like to explore, or pick an experiment to get started.";
 
+// Only jump into a lab when the student asked to go (or said yes to Nour's offer); otherwise offer a button.
+const OPEN_INTENT = /\b(open|start|launch|take me|go to|let'?s (go|try|do)|i want to (try|do|start|open)|try (the|it)|enter)\b|افتح|افتحي|ابدأ|ابدا|وديني|دخلني|عايز (اجرب|ابدأ|ادخل)|عاوز (اجرب|ابدأ|ادخل)|\b(afta7|eftah|wadini|wdini|da5alni|d5alni)\b/i;
+const YES = /^\s*(yes|yeah|yep|sure|ok(ay)?|go|please|aiwa|aywa|ah|tamam|ايوه|أيوه|ايوة|اه|آه|تمام|ماشي|يلا|يلا بينا)[\s!.]*$/i;
+
 const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
   useLab();
   const [msgs, setMsgs] = useState([{ role: 'nour', text: GREETING, labs: false }]);
@@ -38,8 +42,10 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
     if (ctrl.signal.aborted) return;
     if (r && (r.text || r.open)) {
       const finalText = r.text || `Taking you to the ${LABS.find(l => l.id === r.open).title} lab now.`;
-      setLast(finalText, true); if (S.voice) speak(finalText);
-      if (r.open) setTimeout(() => onOpenLab(r.open), 500);
+      const asked = OPEN_INTENT.test(text) || (YES.test(text) && msgs.some((m, i) => i === msgs.length - 1 && m.role === 'nour'));
+      if (r.open && asked) { setLast(finalText, true); setTimeout(() => onOpenLab(r.open), 500); }
+      else setLast(finalText, true, r.open ? { suggest: r.open } : {});
+      if (S.voice) speak(finalText);
     } else {
       const f = fallbackReply(text);
       setLast(f.text, true, f.labs ? { labs: true } : {}); if (S.voice) speak(f.text);
@@ -65,6 +71,9 @@ const Chat = forwardRef(function Chat({ onOpenLab, disabled }, ref) {
         {msgs.map((m, i) => (
           <div key={i} className={'msg ' + m.role}>
             <p>{m.text || (m.streaming ? <span className="dots" aria-label="Nour is typing"><i /><i /><i /></span> : '')}</p>
+            {m.suggest && i === msgs.length - 1 && (() => { const l = LIVE.find(x => x.id === m.suggest); return l && (
+              <div className="lab-picks"><button type="button" className="pick" onClick={() => pick(l)} disabled={busy || disabled}><span className="t">Open the {l.title} lab →</span><span className="d">{l.blurb}</span></button></div>
+            ); })()}
             {m.labs && i === msgs.length - 1 && (
               <div className="lab-picks">
                 {LIVE.map(l => (
