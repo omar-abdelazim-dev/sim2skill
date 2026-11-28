@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { fail, nowIso, getPlan, makeCode, normalizeCode, sha256 } from '../lib.mjs';
-import { PLANS, REGIONS, TRIAL_DAYS, priceFor, orgSeatPrice, limitsForJson } from '../../shared/plans.js';
+import { fail, nowIso, getPlan, makeCode, normalizeCode, sha256, nourUsed, nourExtra } from '../lib.mjs';
+import { PLANS, TOPUP, CURRENCY, TRIAL_DAYS, priceFor, orgSemesterTotal, monthKey, limitsForJson } from '../../shared/plans.js';
 import { activeProvider, PROVIDERS, signMock } from '../billing/providers.mjs';
 import { withStatus } from '../router.mjs';
 
@@ -21,6 +21,11 @@ export default function register(r, { db, limit }) {
       if (event.type === 'checkout.failed') { db.run(`UPDATE checkouts SET status = 'failed' WHERE id = ?`, c.id); return { failed: true }; }
       if (event.type !== 'checkout.paid') return { ignored: true };
       db.run(`UPDATE checkouts SET status = 'paid' WHERE id = ?`, c.id);
+      if (c.plan === 'topup') {
+        db.run('INSERT INTO nour_topups (id, user_id, month, messages, checkout_id, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          randomUUID(), c.user_id, monthKey(), TOPUP.messages, c.id, nowIso());
+        return { paid: true, topup: TOPUP.messages };
+      }
       // Extend from the end of any active subscription so paying early never loses days.
       const current = db.get(`SELECT MAX(ends_at) AS e FROM subscriptions WHERE user_id = ? AND status IN ('active', 'canceled') AND ends_at > ?`, c.user_id, nowIso()).e;
       const start = current ? new Date(current) : new Date();
@@ -33,7 +38,7 @@ export default function register(r, { db, limit }) {
 
   r.get('billing/plans', () => {
     const p = activeProvider();
-    return { plans: plansJson(), regions: REGIONS, trialDays: TRIAL_DAYS, provider: { id: p.id, checkout: !!p.checkout }, demo: process.env.DEMO_MODE === '1' };
+    return { plans: plansJson(), topup: TOPUP, currency: CURRENCY, trialDays: TRIAL_DAYS, provider: { id: p.id, checkout: !!p.checkout }, demo: process.env.DEMO_MODE === '1' };
   });
 
   r.get('billing/me', ctx => {
@@ -41,7 +46,7 @@ export default function register(r, { db, limit }) {
     return {
       plan: { ...plan, limits: limitsForJson(plan.limits) },
       subscriptions: db.all('SELECT id, plan, period, status, provider, started_at AS startedAt, ends_at AS endsAt FROM subscriptions WHERE user_id = ? ORDER BY ends_at DESC', user.id),
-      nourToday: db.get('SELECT count FROM entitlement_usage WHERE subject = ? AND feature = ? AND day = ?', 'u:' + user.id, 'nour', nowIso().slice(0, 10))?.count || 0
+      nour: { used: nourUsed(db, 'u:' + user.id), limit: plan.limits.nourPerMonth === Infinity ? null : plan.limits.nourPerMonth, extra: nourExtra(db, user), month: monthKey() }
     };
   });
 
@@ -49,13 +54,14 @@ export default function register(r, { db, limit }) {
     const user = ctx.requireUser(), provider = activeProvider();
     limit('checkout', user.id, 20, 3600000);
     if (!provider.checkout) fail(400, 'Online checkout is not available yet. Use an activation code or request an invoice.');
-    const { plan, period } = ctx.body, region = REGIONS[ctx.body.region] ? ctx.body.region : 'global';
-    const amount = priceFor(plan, period, region);
-    if (plan !== 'pro' || !amount) fail(400, 'Choose Pro monthly, per semester or yearly.');
+    const { plan, period } = ctx.body;
+    const amount = (plan === 'pro' || plan === 'topup') ? priceFor(plan, period) : null;
+    if (!amount) fail(400, 'Choose Individual monthly or yearly, or a top-up pack.');
+    if (plan === 'topup' && getPlan(db, user).plan !== TOPUP.forPlan) fail(400, 'Top-up packs are for Individual subscribers.');
     const c = { id: randomUUID(), plan, period, amount };
-    db.run(`INSERT INTO checkouts (id, user_id, plan, period, amount_cents, currency, provider, status, created_at) VALUES (?, ?, ?, ?, ?, 'USD', ?, 'pending', ?)`,
-      c.id, user.id, plan, period, amount, provider.id, nowIso());
-    return withStatus(201, { checkoutId: c.id, amountCents: amount, currency: 'USD', ...provider.createCheckout(c) });
+    db.run(`INSERT INTO checkouts (id, user_id, plan, period, amount_cents, currency, provider, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      c.id, user.id, plan, period, amount, CURRENCY, provider.id, nowIso());
+    return withStatus(201, { checkoutId: c.id, amountCents: amount, currency: CURRENCY, ...provider.createCheckout(c) });
   });
 
   r.get('billing/checkout/:id', ctx => {
@@ -92,7 +98,7 @@ export default function register(r, { db, limit }) {
     const user = ctx.requireUser();
     const n = db.run(`UPDATE subscriptions SET status = 'canceled' WHERE user_id = ? AND status = 'active'`, user.id).changes;
     if (!n) fail(400, 'You have no active subscription.');
-    return { ok: true, message: 'Your subscription will not renew. Pro stays active until the end of the paid period.' };
+    return { ok: true, message: 'Your subscription will not renew. Your Individual plan stays active until the end of the paid period.' };
   });
 
   r.post('billing/redeem', ctx => {
@@ -147,19 +153,18 @@ export default function register(r, { db, limit }) {
         ...base,
         members: db.all(`SELECT u.id, u.name, u.email, m.role, m.created_at AS joinedAt FROM org_members m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? ORDER BY m.created_at`, o.id),
         invites: db.all('SELECT email, created_at AS createdAt FROM org_invites WHERE org_id = ? ORDER BY created_at', o.id),
-        seatPriceCents: orgSeatPrice(Math.max(PLANS.org.minSeats, o.seat_limit))
+        seatPriceCents: PLANS.org.pricePerSeatSemester
       };
     });
   });
 
   r.get('orgs/:id/usage', ctx => {
     const o = orgFor(ctx);
-    const since = new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10);
     return db.all(`SELECT u.id, u.name,
-        (SELECT COALESCE(SUM(count), 0) FROM entitlement_usage e WHERE e.subject = 'u:' || u.id AND e.feature = 'nour' AND e.day >= ?) AS nour30d,
+        (SELECT COALESCE(SUM(count), 0) FROM entitlement_usage e WHERE e.subject = 'u:' || u.id AND e.feature = 'nour' AND e.day = ?) AS nourMonth,
         (SELECT COUNT(*) FROM labs l WHERE l.author_id = u.id) AS labs,
         (SELECT COUNT(*) FROM progress p WHERE p.user_id = u.id AND p.solved_at IS NOT NULL) AS solved
-      FROM org_members m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? ORDER BY u.name`, since, o.id);
+      FROM org_members m JOIN users u ON u.id = m.user_id WHERE m.org_id = ? ORDER BY u.name`, monthKey(), o.id);
   });
 
   r.post('orgs/:id/invites', ctx => {
@@ -216,10 +221,9 @@ export default function register(r, { db, limit }) {
     const o = orgFor(ctx);
     const seats = Number(ctx.body.seats), contact = typeof ctx.body.contact === 'string' ? ctx.body.contact.trim() : '';
     const notes = typeof ctx.body.notes === 'string' ? ctx.body.notes.trim().slice(0, 2000) : '';
-    if (!Number.isInteger(seats) || seats < PLANS.org.minSeats || seats > 100000) fail(400, `Organizations start at ${PLANS.org.minSeats} seats.`);
+    if (!Number.isInteger(seats) || seats < PLANS.org.minSeats || seats > 100000) fail(400, `Institution licences start at ${PLANS.org.minSeats} seats.`);
     if (contact.length < 3 || contact.length > 200) fail(400, 'Add a billing contact (name, email or phone).');
-    const price = orgSeatPrice(seats);
     db.run('INSERT INTO invoice_requests (id, user_id, org_id, seats, contact, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', randomUUID(), ctx.user.id, o.id, seats, contact, notes, nowIso());
-    return withStatus(201, { ok: true, quote: price ? { seats, centsPerSeatYear: price, totalCents: price * seats } : { seats, custom: true } });
+    return withStatus(201, { ok: true, quote: { seats, centsPerSeatSemester: PLANS.org.pricePerSeatSemester, totalCents: orgSemesterTotal(seats), currency: CURRENCY } });
   });
 }

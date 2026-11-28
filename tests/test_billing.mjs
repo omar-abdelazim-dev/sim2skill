@@ -15,7 +15,7 @@ async function age(dir, userId) {
   d.close();
 }
 
-test('free plan limits: 2 public labs, no private labs, titration only, 10 Nour questions a day', async () => {
+test('free plan limits: 2 public labs, no private labs, titration only, 20 Nour messages a month', async () => {
   setModels({ chat: RunnableLambda.from(() => new AIMessage('Hi')) });
   const p = await platform();
   try {
@@ -29,7 +29,7 @@ test('free plan limits: 2 public labs, no private labs, titration only, 10 Nour 
     assert.equal(third.status, 402);
     assert.equal(third.data.upgrade, true);
     assert.equal((await p.request('labs', 'POST', { ...draft, visibility: 'private' }, u.cookie)).status, 402);
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const r = await p.request('nour', 'POST', { kind: 'home', messages: [{ role: 'user', content: 'hi ' + i }] }, u.cookie);
       assert.equal(r.status, 200);
     }
@@ -51,16 +51,22 @@ test('mock checkout: signed webhook, idempotent, upgrades to Pro', async () => {
     const u = await p.signup('Buyer');
     await age(p.dir, u.id);
     const plans = (await p.request('billing/plans')).data;
-    assert.equal(plans.plans.pro.prices.month, 1000);
+    assert.equal(plans.currency, 'EGP');
+    assert.deepEqual(plans.plans.pro.prices, { month: 19900, year: 169000 });
+    assert.equal(plans.plans.pro.limits.nourPerMonth, 100);
+    assert.equal(plans.plans.org.pricePerSeatSemester, 75000);
+    assert.equal(plans.plans.org.minSeats, 100);
+    assert.equal(plans.topup.price, 14900);
     assert.equal(plans.plans.free.limits.publicLabs, 2);
     assert.equal(plans.plans.pro.limits.publicLabs, null, 'Infinity is sent as null');
     assert.equal(plans.provider.checkout, true);
 
-    const regional = await p.request('billing/checkout', 'POST', { plan: 'pro', period: 'year', region: 'mena' }, u.cookie);
-    assert.equal(regional.data.amountCents, 3200, 'MENA student price is 40% of $80');
+    assert.equal((await p.request('billing/checkout', 'POST', { plan: 'pro', period: 'semester' }, u.cookie)).status, 400, 'no semester for Individual');
+    assert.equal((await p.request('billing/checkout', 'POST', { plan: 'topup', period: 'pack' }, u.cookie)).status, 400, 'top-ups need the Individual plan');
     const c = await p.request('billing/checkout', 'POST', { plan: 'pro', period: 'month' }, u.cookie);
     assert.equal(c.status, 201);
-    assert.equal(c.data.amountCents, 1000);
+    assert.equal(c.data.amountCents, 19900);
+    assert.equal(c.data.currency, 'EGP');
 
     const event = JSON.stringify({ id: 'evt_test_1', type: 'checkout.paid', checkoutId: c.data.checkoutId });
     assert.equal((await p.request('billing/webhook/mock', 'POST', event, undefined, { 'x-mock-signature': 'sha256=bad' })).status, 400);
@@ -77,6 +83,15 @@ test('mock checkout: signed webhook, idempotent, upgrades to Pro', async () => {
     const c2 = await p.request('billing/checkout', 'POST', { plan: 'pro', period: 'year' }, u.cookie);
     assert.equal((await p.request('billing/mock/pay', 'POST', { checkoutId: c2.data.checkoutId }, u.cookie)).data.result.paid, true);
     assert.equal((await p.request('billing/me', 'GET', undefined, u.cookie)).data.subscriptions.length, 2);
+
+    // Top-up pack: 149 EGP adds 100 Nour messages for this month.
+    const t = await p.request('billing/checkout', 'POST', { plan: 'topup', period: 'pack' }, u.cookie);
+    assert.equal(t.data.amountCents, 14900);
+    assert.equal((await p.request('billing/mock/pay', 'POST', { checkoutId: t.data.checkoutId }, u.cookie)).data.result.topup, 100);
+    const after = (await p.request('billing/me', 'GET', undefined, u.cookie)).data;
+    assert.equal(after.nour.limit, 100);
+    assert.equal(after.nour.extra, 100);
+    assert.equal(after.subscriptions.length, 2, 'a top-up is not a subscription');
   } finally { delete process.env.PAYMENT_PROVIDER; await p.close(); }
 });
 
@@ -115,8 +130,10 @@ test('organizations: pilot seats, invites by email and code, members get org lim
     assert.equal(mine.seatLimit, 25);
     assert.equal(mine.status, 'pilot');
     assert.equal((await p.request('orgs/' + org.data.id + '/usage', 'GET', undefined, owner.cookie)).data.length, 4);
+    assert.equal((await p.request('orgs/' + org.data.id + '/invoice-request', 'POST', { seats: 50, contact: 'bursar@aiu.edu.eg' }, owner.cookie)).status, 400, '100-seat minimum');
     const quote = await p.request('orgs/' + org.data.id + '/invoice-request', 'POST', { seats: 250, contact: 'bursar@aiu.edu.eg' }, owner.cookie);
-    assert.equal(quote.data.quote.centsPerSeatYear, 2000);
+    assert.equal(quote.data.quote.centsPerSeatSemester, 75000);
+    assert.equal(quote.data.quote.totalCents, 250 * 75000);
     assert.equal((await p.request('orgs/' + org.data.id + '/members/' + teacher.id, 'DELETE', {}, owner.cookie)).status, 200);
     assert.equal((await p.request('billing/me', 'GET', undefined, teacher.cookie)).data.plan.plan, 'free');
   } finally { await p.close(); }

@@ -1,6 +1,6 @@
 // Shared server helpers: errors, secrets, rate limits, access control, entitlements, notifications.
 import { randomBytes, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
-import { PLANS, TRIAL_DAYS, engineAllowed } from '../shared/plans.js';
+import { PLANS, TRIAL_DAYS, engineAllowed, monthKey } from '../shared/plans.js';
 
 export function fail(status, message, extra) {
   throw Object.assign(Error(message), { status, extra, expose: true });
@@ -99,25 +99,36 @@ export function requireEntitlement(db, user, feature, detail = {}) {
     const count = db.get('SELECT COUNT(*) AS n FROM labs WHERE author_id = ? AND visibility = ? AND builtin = 0 AND id <> ?',
       user.id, visibility, detail.excludeId || '').n;
     if (count >= limits[key]) upgrade(visibility === 'private'
-      ? 'Private labs are part of Pro. Upgrade to create labs only people with your code can open.'
-      : `The Free plan includes ${limits.publicLabs} public labs. Upgrade to Pro for unlimited labs.`);
+      ? 'Private labs are part of the Individual plan. Upgrade to create labs only people with your code can open.'
+      : `The Free plan includes ${limits.publicLabs} public labs. Upgrade to Individual for unlimited labs.`);
   } else if (feature === 'engine') {
-    if (!engineAllowed(limits, detail.engine)) upgrade('This chemistry simulation is part of Pro. The Free plan includes titration.');
+    if (!engineAllowed(limits, detail.engine)) upgrade('This chemistry simulation is part of the Individual plan. The Free plan includes titration.');
   } else if (feature === 'csvExport') {
-    if (!limits.csvExport) upgrade('CSV export is part of Pro.');
+    if (!limits.csvExport) upgrade('CSV export is part of the Individual plan.');
   }
   return limits;
 }
 
-// Daily counters (Nour questions). subject is a user id or "ip:<address>".
-export function consumeDaily(db, subject, feature, max) {
-  const day = nowIso().slice(0, 10);
+// Monthly counters (Nour messages). subject is "u:<user id>" or "ip:<address>"; the bucket is "YYYY-MM".
+// extra = top-up messages bought for this month.
+export function nourExtra(db, user, month = monthKey()) {
+  if (!user) return 0;
+  return db.get('SELECT COALESCE(SUM(messages), 0) AS n FROM nour_topups WHERE user_id = ? AND month = ?', user.id, month).n;
+}
+
+export function nourUsed(db, subject, month = monthKey()) {
+  return db.get('SELECT count FROM entitlement_usage WHERE subject = ? AND feature = ? AND day = ?', subject, 'nour', month)?.count || 0;
+}
+
+export function consumeMonthly(db, subject, feature, max, { canTopUp = false } = {}) {
+  const month = monthKey();
   return db.tx(() => {
-    const row = db.get('SELECT count FROM entitlement_usage WHERE subject = ? AND feature = ? AND day = ?', subject, feature, day);
-    const count = row?.count || 0;
-    if (count >= max) fail(429, `You have used today's ${max} questions for Nour. Upgrade to Pro for more, or come back tomorrow.`, { upgrade: true });
+    const count = db.get('SELECT count FROM entitlement_usage WHERE subject = ? AND feature = ? AND day = ?', subject, feature, month)?.count || 0;
+    if (count >= max) fail(429, canTopUp
+      ? `You have used this month's ${max} messages for Nour. Buy a top-up pack on the Plans page for 100 more.`
+      : `You have used this month's ${max} messages for Nour. Upgrade to Individual for more, or come back next month.`, { upgrade: true });
     db.run(`INSERT INTO entitlement_usage (subject, feature, day, count) VALUES (?, ?, ?, 1)
-            ON CONFLICT (subject, feature, day) DO UPDATE SET count = count + 1`, subject, feature, day);
+            ON CONFLICT (subject, feature, day) DO UPDATE SET count = count + 1`, subject, feature, month);
     return count + 1;
   });
 }

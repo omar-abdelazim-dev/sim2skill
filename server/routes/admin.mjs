@@ -45,7 +45,7 @@ export default function register(r, { db }) {
   r.post('admin/users/:id/grant', ctx => {
     const admin = ctx.requireAdmin();
     const days = Number(ctx.body.days);
-    if (ctx.body.plan !== 'pro' || !Number.isInteger(days) || days < 1 || days > 730) fail(400, 'Grant Pro for 1–730 days.');
+    if (ctx.body.plan !== 'pro' || !Number.isInteger(days) || days < 1 || days > 730) fail(400, 'Grant the Individual plan for 1–730 days.');
     if (!db.get('SELECT 1 FROM users WHERE id = ?', ctx.params.id)) fail(404, 'User not found.');
     const now = new Date();
     db.run(`INSERT INTO subscriptions (id, user_id, plan, period, status, provider, provider_ref, started_at, ends_at) VALUES (?, ?, 'pro', 'custom', 'active', 'manual', ?, ?, ?)`,

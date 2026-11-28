@@ -65,7 +65,7 @@ export default function AuthPage({ onAuth }) {
     </div>
     <form ref={panelRef} className="platform-page auth-panel" onSubmit={submit}>
       <h2>{signup ? 'Create your account' : 'Sign in'}</h2>
-      <p className="platform-help">{signup ? 'Free to start. New accounts get 14 days of Pro.' : 'Good to see you again.'}</p>
+      <p className="platform-help">{signup ? 'Free to start. New accounts get 14 days of the Individual plan.' : 'Good to see you again.'}</p>
       {nextLab && <p className="auth-next">After signing in you’ll go straight to <b>{nextLab.title}</b>.</p>}
       {signup && <label>Your name<input name="name" required minLength={2} maxLength={80} autoComplete="name" /></label>}
       <label>Email<input ref={emailRef} name="email" type="email" required maxLength={200} autoComplete="email" /></label>

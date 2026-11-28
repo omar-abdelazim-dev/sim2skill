@@ -59,7 +59,7 @@ Lists, search, profiles, notifications, practice, Nour and the RAG retriever all
 4. 14-day trial from sign-up.
 5. Free.
 
-`requireEntitlement` gates creating public and private labs and the chemistry engines. Nour's daily quota uses `consumeDaily`. Limits come from `shared/plans.js`.
+`requireEntitlement` gates creating public and private labs and the chemistry engines. Nour's monthly quota uses `consumeMonthly` (bucket `YYYY-MM` in `entitlement_usage`), plus any top-up packs in `nour_topups`. Limits come from `shared/plans.js`.
 
 ## Payments
 

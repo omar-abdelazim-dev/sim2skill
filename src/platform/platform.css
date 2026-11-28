@@ -45,6 +45,7 @@ a.account-name:hover{text-decoration:underline}
 .plan-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-top:8px}
 .plan-card{display:grid;gap:10px;align-content:start}
 .plan-card.featured{border-color:var(--meter);box-shadow:0 0 0 1px var(--meter) inset}
+.topup-card{margin-top:20px}.topup-card button{justify-self:start}
 .plan-card h2{margin:0}
 .plan-price{font:600 28px/1.1 var(--font-display);margin:0;color:#eef5f7}
 .plan-price small{font:400 14px var(--font-body);color:#8fa6b0}

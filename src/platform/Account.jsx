@@ -115,64 +115,71 @@ export function AccessTools({ lab }) {
 }
 
 // ---------- Plans and checkout ----------
-const PERIOD = { month: 'per month', semester: 'per semester (4 months)', year: 'per year' };
+const PERIOD = { month: 'per month', year: 'per year' };
 export function Plans({ user, onUser }) {
   const { data, error } = useLoad('billing/plans');
   const me = useLoad(user ? 'billing/me' : 'billing/plans');
-  const [region, setRegion] = useState('global'), [busy, setBusy] = useState(''), [msg, setMsg] = useState(''), [code, setCode] = useState(''), [orgName, setOrgName] = useState('');
+  const [busy, setBusy] = useState(''), [msg, setMsg] = useState(''), [code, setCode] = useState(''), [orgName, setOrgName] = useState('');
   if (error) return <main className="platform-page"><Err error={error} /></main>;
-  if (!data) return <main className="platform-page" role="status">Loading plans…</main>;
-  const { plans, regions, provider } = data, factor = regions[region].factor;
-  const current = user && me.data?.plan;
-  async function checkout(period) {
+  if (!data?.plans) return <main className="platform-page" role="status">Loading plans…</main>;
+  const { plans, topup, provider } = data, org = plans.org, pro = plans.pro;
+  const current = user ? me.data?.plan : null, nour = user ? me.data?.nour : null;
+  async function checkout(plan, period) {
     if (!user) { location.hash = 'signin?next=plans'; return; }
-    setBusy(period); setMsg('');
-    try { const c = await api('billing/checkout', 'POST', { plan: 'pro', period, region }); location.hash = c.url.slice(1); }
+    setBusy(plan + period); setMsg('');
+    try { const c = await api('billing/checkout', 'POST', { plan, period }); location.hash = c.url.slice(1); }
     catch (e) { setMsg(e.message); } finally { setBusy(''); }
   }
   async function redeem(e) {
     e.preventDefault(); setMsg('');
-    try { await api('billing/redeem', 'POST', { code }); setMsg('Code accepted. Pro is active.'); onUser?.(); setCode(''); } catch (err) { setMsg(err.message); }
+    try { await api('billing/redeem', 'POST', { code }); setMsg('Code accepted. The Individual plan is active.'); onUser?.(); setCode(''); } catch (err) { setMsg(err.message); }
   }
   async function startOrg(e) {
     e.preventDefault(); setMsg('');
     try { await api('orgs', 'POST', { name: orgName }); location.hash = 'org'; } catch (err) { setMsg(err.message); }
   }
   const Row = ({ label, free, pro, org }) => <tr><th scope="row">{label}</th><td>{free}</td><td>{pro}</td><td>{org}</td></tr>;
-  const lim = (p, k) => plans[p].limits[k] === null ? 'Unlimited' : plans[p].limits[k];
+  const lim = (p, k) => plans[p].limits[k] == null ? 'Unlimited' : plans[p].limits[k];
+  const canTopUp = current?.plan === 'pro';
   return <main className="platform-page plans-page">
     <div className="platform-heading"><div><div className="section-kicker">PLANS</div><h1>Learn by doing. Pay for what you use.</h1>
-      <p>Every built-in lab is free. Pro unlocks unlimited and private labs, all chemistry engines and more help from Nour. New accounts get {data.trialDays} days of Pro.</p></div>
-      <label className="region-pick">Pricing region<select value={region} onChange={e => setRegion(e.target.value)}>{Object.entries(regions).map(([k, r]) => <option key={k} value={k}>{r.label}</option>)}</select></label></div>
+      <p>Every built-in lab is free. The Individual plan unlocks unlimited and private labs, all chemistry engines and more help from Nour. New accounts get {data.trialDays} days of it free. Prices are in Egyptian pounds.</p></div></div>
     {data.demo && <div className="platform-notice" role="status">Demo mode is on: every feature is unlocked without payment.</div>}
     {current && <div className="platform-notice" role="status">Your plan: <b>{current.plan === 'demo' ? 'Demo (everything unlocked)' : plans[current.plan]?.name || current.plan}</b>
       {current.source === 'trial' && <> · free trial until {when(current.endsAt)}</>}
       {current.source === 'subscription' && <> · until {when(current.endsAt)}</>}
-      {current.org && <> · through {current.org.name}</>}</div>}
+      {current.org && <> · through {current.org.name}</>}
+      {nour && nour.limit != null && <> · Nour this month: {nour.used} of {nour.limit + nour.extra} messages</>}</div>}
     {msg && <div className="platform-notice" role="status">{msg}</div>}
     <div className="plan-cards">
-      <article className="platform-panel plan-card"><h2>Free</h2><p className="plan-price">$0</p><p>All built-in labs, community labs, and titration.</p></article>
-      <article className="platform-panel plan-card featured"><h2>Pro</h2>
-        {Object.entries(plans.pro.prices).map(([period, cents]) => <div className="plan-option" key={period}>
-          <p className="plan-price">{money(Math.round(cents * factor))} <small>{PERIOD[period]}</small></p>
-          <button type="button" className={period === 'year' ? 'home-primary' : 'home-outline'} disabled={!!busy || !provider.checkout} onClick={() => checkout(period)}>{busy === period ? 'Starting…' : 'Choose ' + period}</button>
+      <article className="platform-panel plan-card"><h2>{plans.free.name}</h2><p className="plan-price">{money(0)}</p><p>All built-in labs, community labs, and titration. {lim('free', 'nourPerMonth')} Nour messages a month.</p></article>
+      <article className="platform-panel plan-card featured"><h2>{pro.name}</h2><p className="plan-tier">{pro.audience}</p>
+        {Object.entries(pro.prices).map(([period, cents]) => <div className="plan-option" key={period}>
+          <p className="plan-price">{money(cents)} <small>{PERIOD[period] || period}</small></p>
+          <button type="button" className={period === 'year' ? 'home-primary' : 'home-outline'} disabled={!!busy || !provider.checkout} onClick={() => checkout('pro', period)}>{busy === 'pro' + period ? 'Starting…' : 'Choose ' + period}</button>
         </div>)}
+        <p className="plan-tier">{lim('pro', 'nourPerMonth')} Nour messages a month</p>
         {!provider.checkout && <p className="platform-help">Online payment is not switched on yet. Use an activation code below.</p>}
       </article>
-      <article className="platform-panel plan-card"><h2>Organization</h2>
-        {plans.org.seatTiers.map(t => <p key={t.from} className="plan-tier"><b>{money(t.centsPerSeatYear)}</b> per seat per year, {t.from}–{t.to} seats</p>)}
-        <p className="plan-tier">Custom pricing from {plans.org.customAbove} seats · {plans.org.minSeats}-seat minimum · billed by invoice</p>
-        {user ? <form onSubmit={startOrg}><label>Start a free {plans.org.pilot.days}-day pilot ({plans.org.pilot.seats} seats)<input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="School or university name" minLength={2} maxLength={120} required /></label><button className="home-outline">Start pilot</button></form>
+      <article className="platform-panel plan-card"><h2>{org.name}</h2><p className="plan-tier">{org.audience}</p>
+        <p className="plan-price">{money(org.pricePerSeatSemester)} <small>per seat per semester</small></p>
+        <p className="plan-tier">{org.minSeats}-seat minimum · billed per semester by invoice · {lim('org', 'nourPerMonth')} Nour messages a month per member</p>
+        {user ? <form onSubmit={startOrg}><label>Start a free {org.pilot.days}-day pilot ({org.pilot.seats} seats)<input value={orgName} onChange={e => setOrgName(e.target.value)} placeholder="School or university name" minLength={2} maxLength={120} required /></label><button className="home-outline">Start pilot</button></form>
           : <a className="home-outline" href="#signin?next=plans">Sign in to start a pilot</a>}
-        <a className="platform-text" href="#org">Manage my organization</a>
+        <a className="platform-text" href="#org">Manage my institution</a>
       </article>
     </div>
-    <table className="plan-table"><thead><tr><th scope="col">Feature</th><th scope="col">Free</th><th scope="col">Pro</th><th scope="col">Organization</th></tr></thead><tbody>
+    {topup && <article className="platform-panel plan-card topup-card"><h2>{topup.name}</h2>
+      <p><b>{money(topup.price)}</b> for {topup.messages} more Nour messages this month. For Individual subscribers.</p>
+      {canTopUp ? <button type="button" className="home-outline" disabled={!!busy || !provider.checkout} onClick={() => checkout('topup', 'pack')}>{busy === 'topuppack' ? 'Starting…' : 'Buy a top-up pack'}</button>
+        : <p className="platform-help">Available once you are on the Individual plan.</p>}
+    </article>}
+    <table className="plan-table"><thead><tr><th scope="col">Feature</th><th scope="col">{plans.free.name}</th><th scope="col">{pro.name}</th><th scope="col">{org.name}</th></tr></thead><tbody>
       <Row label="Built-in labs" free="All" pro="All" org="All" />
       <Row label="Create public labs" free={lim('free', 'publicLabs')} pro={lim('pro', 'publicLabs')} org={lim('org', 'publicLabs')} />
       <Row label="Private labs with access codes" free="No" pro="Unlimited" org="Unlimited" />
       <Row label="Chemistry engines" free="Titration" pro="All" org="All" />
-      <Row label="Nour questions per day" free={lim('free', 'nourPerDay')} pro={lim('pro', 'nourPerDay')} org={lim('org', 'nourPerDay') + ' per member'} />
+      <Row label="Nour messages per month" free={lim('free', 'nourPerMonth')} pro={lim('pro', 'nourPerMonth') + ' (+ top-ups)'} org={lim('org', 'nourPerMonth') + ' per member'} />
       <Row label="Follow creators and notifications" free="Yes" pro="Yes" org="Yes" />
       <Row label="CSV export" free="No" pro="Yes" org="Yes" />
     </tbody></table>
@@ -192,9 +199,9 @@ export function Checkout({ id, onPaid }) {
   };
   return <main className="platform-page"><section className="platform-panel checkout-panel">
     <div className="section-kicker">TEST CHECKOUT · NO REAL MONEY</div>
-    <h1>Sim2Skill Pro, {data.period}</h1><p className="plan-price">{money(data.amountCents)} {data.currency}</p>
+    <h1>{data.plan === 'topup' ? 'Nour top-up pack' : 'Sim2Skill Individual, ' + data.period}</h1><p className="plan-price">{money(data.amountCents)}</p>
     <p className="platform-help">This is the test payment provider. A real gateway would show its own secure card page here; Sim2Skill never sees card numbers.</p>
-    {state === 'paid' ? <><p role="status" className="platform-notice">Payment received. Pro is active.</p><a className="home-primary" href="#studio">Go to Lab studio</a></>
+    {state === 'paid' ? <><p role="status" className="platform-notice">{data.plan === 'topup' ? 'Payment received. Your extra Nour messages are ready.' : 'Payment received. The Individual plan is active.'}</p><a className="home-primary" href="#studio">Go to Lab studio</a></>
       : state === 'failed' ? <><p role="alert" className="platform-error">The test payment was declined.</p><button className="home-outline" onClick={() => setState('')}>Try again</button></>
       : <div className="public-lab-actions"><button className="home-primary" disabled={state === 'paying' || data.status !== 'pending'} onClick={() => pay('success')}>Pay with test card</button>
         <button className="platform-text" disabled={state === 'paying'} onClick={() => pay('fail')}>Simulate a declined card</button></div>}
@@ -207,7 +214,7 @@ export function Checkout({ id, onPaid }) {
 export function OrgPage({ user }) {
   const [rev, setRev] = useState(0);
   const { data, error } = useLoad('orgs/mine', rev);
-  const [emails, setEmails] = useState(''), [joinCode, setJoinCode] = useState(''), [msg, setMsg] = useState(''), [usage, setUsage] = useState(null), [invoice, setInvoice] = useState({ seats: 25, contact: '', notes: '' });
+  const [emails, setEmails] = useState(''), [joinCode, setJoinCode] = useState(''), [msg, setMsg] = useState(''), [usage, setUsage] = useState(null), [invoice, setInvoice] = useState({ seats: 100, contact: '', notes: '' });
   if (!user) return <main className="platform-page platform-empty"><h1>Sign in to manage your organization.</h1><a className="home-primary" href="#signin?next=org">Sign in</a></main>;
   if (error) return <main className="platform-page"><Err error={error} /></main>;
   if (!data) return <main className="platform-page" role="status">Loading…</main>;
@@ -231,11 +238,11 @@ export function OrgPage({ user }) {
           <button className="platform-text" onClick={async () => { await api(`orgs/${o.id}/members/${m.id}`, 'DELETE', {}); setRev(x => x + 1); }}>Remove</button></>}</td></tr>)}
         {o.invites.map(i => <tr key={i.email}><td><i>Invited</i></td><td>{i.email}</td><td>pending</td><td><button className="platform-text" onClick={async () => { await api(`orgs/${o.id}/invites/${encodeURIComponent(i.email)}`, 'DELETE', {}); setRev(x => x + 1); }}>Cancel</button></td></tr>)}
       </tbody></table></div>
-      <div className="platform-panel"><h2>Usage, last 30 days</h2><button className="home-outline" onClick={async () => setUsage(await api(`orgs/${o.id}/usage`))}>Load usage</button>
-        {usage && <table className="plan-table"><thead><tr><th scope="col">Member</th><th scope="col">Nour questions</th><th scope="col">Labs created</th><th scope="col">Labs solved</th></tr></thead><tbody>{usage.map(u => <tr key={u.id}><td>{u.name}</td><td>{u.nour30d}</td><td>{u.labs}</td><td>{u.solved}</td></tr>)}</tbody></table>}</div>
-      <form className="platform-panel" onSubmit={async e => { e.preventDefault(); setMsg(''); try { const r = await api(`orgs/${o.id}/invoice-request`, 'POST', { ...invoice, seats: Number(invoice.seats) }); setMsg(r.quote.custom ? 'Request sent. We will send a custom quote.' : `Request sent. Quote: ${r.quote.seats} seats × ${money(r.quote.centsPerSeatYear)} = ${money(r.quote.totalCents)} per year.`); } catch (err) { setMsg(err.message); } }}>
+      <div className="platform-panel"><h2>Usage this month</h2><button className="home-outline" onClick={async () => setUsage(await api(`orgs/${o.id}/usage`))}>Load usage</button>
+        {usage && <table className="plan-table"><thead><tr><th scope="col">Member</th><th scope="col">Nour messages</th><th scope="col">Labs created</th><th scope="col">Labs solved</th></tr></thead><tbody>{usage.map(u => <tr key={u.id}><td>{u.name}</td><td>{u.nourMonth}</td><td>{u.labs}</td><td>{u.solved}</td></tr>)}</tbody></table>}</div>
+      <form className="platform-panel" onSubmit={async e => { e.preventDefault(); setMsg(''); try { const r = await api(`orgs/${o.id}/invoice-request`, 'POST', { ...invoice, seats: Number(invoice.seats) }); setMsg(`Request sent. Quote: ${r.quote.seats} seats × ${money(r.quote.centsPerSeatSemester)} = ${money(r.quote.totalCents)} per semester.`); } catch (err) { setMsg(err.message); } }}>
         <h2>Request an invoice</h2>
-        <label>Seats<input type="number" min={25} max={100000} value={invoice.seats} onChange={e => setInvoice({ ...invoice, seats: e.target.value })} required /></label>
+        <label>Seats<input type="number" min={100} max={100000} value={invoice.seats} onChange={e => setInvoice({ ...invoice, seats: e.target.value })} required /></label>
         <label>Billing contact<input value={invoice.contact} onChange={e => setInvoice({ ...invoice, contact: e.target.value })} required maxLength={200} /></label>
         <label>Notes<textarea value={invoice.notes} onChange={e => setInvoice({ ...invoice, notes: e.target.value })} maxLength={2000} /></label>
         <button className="home-outline">Send request</button></form>
@@ -256,9 +263,9 @@ export function AdminPage({ user }) {
         <td>{r.takenDown ? <button className="platform-text" onClick={async () => { await api(`admin/labs/${r.labId}/restore`, 'POST', {}); setRev(x => x + 1); }}>Restore</button>
           : <><button className="platform-text" onClick={() => takedown(r)}>Take down</button>{r.status === 'open' && <button className="platform-text" onClick={async () => { await api(`admin/reports/${r.id}/resolve`, 'POST', {}); setRev(x => x + 1); }}>Dismiss</button>}</>}</td></tr>)}
     </tbody></table> : <p>No reports.</p>}</div>
-    <div className="platform-panel"><h2>Activation codes</h2><button className="home-outline" onClick={async () => setCodes((await api('admin/redeem-codes', 'POST', { count: 5, days: 30 })).codes)}>Create 5 codes for 30 days of Pro</button>
+    <div className="platform-panel"><h2>Activation codes</h2><button className="home-outline" onClick={async () => setCodes((await api('admin/redeem-codes', 'POST', { count: 5, days: 30 })).codes)}>Create 5 codes for 30 days of Individual</button>
       {codes && <><p className="platform-help">Shown once. Copy them now.</p><ul className="code-list">{codes.map(c => <li key={c}><code>{c}</code></li>)}</ul></>}</div>
-    <form className="platform-panel" onSubmit={async e => { e.preventDefault(); setUsers(await api('admin/users?q=' + encodeURIComponent(q))); }}><h2>Grant Pro</h2><label>Find a user<input value={q} onChange={e => setQ(e.target.value)} /></label><button className="home-outline">Search</button>
-      {users && <ul className="grant-list">{users.map(u => <li key={u.id}>{u.name} <small>{u.email}</small><button type="button" className="platform-text" onClick={async () => { await api(`admin/users/${u.id}/grant`, 'POST', { plan: 'pro', days: 30 }); setMsg('Granted 30 days of Pro to ' + u.name + '.'); }}>Grant 30 days</button></li>)}</ul>}</form>
+    <form className="platform-panel" onSubmit={async e => { e.preventDefault(); setUsers(await api('admin/users?q=' + encodeURIComponent(q))); }}><h2>Grant the Individual plan</h2><label>Find a user<input value={q} onChange={e => setQ(e.target.value)} /></label><button className="home-outline">Search</button>
+      {users && <ul className="grant-list">{users.map(u => <li key={u.id}>{u.name} <small>{u.email}</small><button type="button" className="platform-text" onClick={async () => { await api(`admin/users/${u.id}/grant`, 'POST', { plan: 'pro', days: 30 }); setMsg('Granted 30 days of Individual to ' + u.name + '.'); }}>Grant 30 days</button></li>)}</ul>}</form>
   </main>;
 }

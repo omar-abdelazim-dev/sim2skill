@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react';
+import {Component,useEffect,useRef,useState} from 'react';
 import Home from './home/Home.jsx';
 import LabView from './lab/LabView.jsx';
 import {ACT,S,subscribe,stopVoice,rt,bump} from './lab/store.js';
@@ -10,6 +10,8 @@ import ThemeToggle from './platform/ThemeToggle.jsx';
 import {QuizDialog} from './platform/Quiz.jsx';
 import NourWidget from './home/NourWidget.jsx';
 import {Avatar} from './platform/Pages.jsx';
+// A crash inside one page shows a message instead of blanking the whole app. Keyed by page, so navigating resets it.
+class PageBoundary extends Component{state={error:null};static getDerivedStateFromError(error){return{error}}componentDidCatch(error,info){console.error('Page crashed:',error,info?.componentStack)}render(){return this.state.error?<main className="platform-page" role="alert"><h1>This page hit an error.</h1><p className="platform-error">{String(this.state.error?.message||this.state.error)}</p><button className="home-outline" onClick={()=>this.setState({error:null})}>Try again</button> <a className="platform-text" href="#home">Go home</a></main>:this.props.children}}
 const route=()=>location.hash.slice(1)||'home';
 const initialState=structuredClone(S);
 export default function App(){
@@ -25,8 +27,8 @@ export default function App(){
  function authenticated(u){setUser(u);const next=new URLSearchParams(view.split('?')[1]||'').get('next');go(next&&/^(details\/[a-zA-Z0-9-]+|plans|org)$/.test(next)?next:'browse')}
  const refreshUser=()=>api('session').then(v=>setUser(v.user)).catch(()=>{});
  const navLink=(v,label)=><a href={'#'+v} aria-current={page===v?'page':undefined}>{label}</a>;
- return <><nav className={'nav ready platform-nav'+(page==='lab'&&user&&activeLab?.engine==='circuits'?' gone':'')} aria-label="Main"><a className="wordmark" href="#home"><span className="wmFirst" ref={navName}>Sim2Skill</span><span className="wmRest">&nbsp;Lab.</span></a><div className="links">{navLink('home','Home')}{navLink('browse','Browse labs')}{user&&<>{navLink('studio','Lab studio')}{navLink('practice','My practice')}</>}{navLink('plans','Plans')}{user?.isAdmin&&navLink('admin','Admin')}<ThemeToggle/><NotificationBell user={user}/>{!ready?<span className="account-label">Loading account…</span>:user?<div className="account-menu"><a className="account-role" href="#plans">{user.plan?.plan==='demo'?'demo':user.plan?.source==='trial'?'pro trial':user.plan?.plan||'free'}</a><a className="account-name" href={'#profile/'+user.id}><Avatar user={user} size="xs"/>{user.name}</a><button onClick={async()=>{try{await api('logout','POST',{});setUser(null);go('home')}catch(e){setError(e.message)}}}>Sign out</button></div>:navLink('signin','Join / Sign in')}</div></nav>{error&&<div className="global-platform-error" role="alert">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}
- {!ready?<main className="platform-page" role="status">Loading your workspace…</main>:<>
+ return <><nav className={'nav ready platform-nav'+(page==='lab'&&user&&activeLab?.engine==='circuits'?' gone':'')} aria-label="Main"><a className="wordmark" href="#home"><span className="wmFirst" ref={navName}>Sim2Skill</span><span className="wmRest">&nbsp;Lab.</span></a><div className="links">{navLink('home','Home')}{navLink('browse','Browse labs')}{user&&<>{navLink('studio','Lab studio')}{navLink('practice','My practice')}</>}{navLink('plans','Plans')}{user?.isAdmin&&navLink('admin','Admin')}<ThemeToggle/><NotificationBell user={user}/>{!ready?<span className="account-label">Loading account…</span>:user?<div className="account-menu"><a className="account-role" href="#plans">{user.plan?.plan==='demo'?'demo':user.plan?.source==='trial'?'individual trial':({pro:'individual',org:'institution'})[user.plan?.plan]||user.plan?.plan||'free'}</a><a className="account-name" href={'#profile/'+user.id}><Avatar user={user} size="xs"/>{user.name}</a><button onClick={async()=>{try{await api('logout','POST',{});setUser(null);go('home')}catch(e){setError(e.message)}}}>Sign out</button></div>:navLink('signin','Join / Sign in')}</div></nav>{error&&<div className="global-platform-error" role="alert">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}
+ {!ready?<main className="platform-page" role="status">Loading your workspace…</main>:<PageBoundary key={page}>
  {page==='home'&&<Home onIntroDone={()=>{}} onOpenLab={id=>go('details/'+id)} transit={null}/>}
  {page==='browse'&&<Browse/>}
  {page==='signin'&&<Auth onAuth={authenticated}/>}
@@ -43,7 +45,7 @@ export default function App(){
  {page==='lab'&&user&&activeLab&&activeLab.engine!=='circuits'&&<ChemLab key={activeLab.id} lab={activeLab} onBack={()=>go('details/'+activeLab.id)}/>}
  {page==='lab'&&!(user&&activeLab&&activeLab.engine!=='circuits')&&(user&&activeLab?<><LabView key={activeLab.id} onBack={()=>go('details/'+activeLab.id)} onDashboard={()=>go('practice')}/><div className="community-lab-context"><span>{activeLab.title} <small>by {activeLab.author.name}</small></span><button onClick={()=>setShowInstructions(true)}>Lab instructions</button>{activeLab.quiz?.length>0&&<button onClick={()=>setShowQuiz(true)}>Take the quiz</button>}</div>{showQuiz&&<QuizDialog lab={activeLab} onClose={()=>setShowQuiz(false)}/>}{showInstructions&&<dialog ref={instructionsRef} className="platform-modal" onClose={()=>setShowInstructions(false)} onCancel={()=>setShowInstructions(false)}><section className="platform-panel" role="dialog" aria-modal="true" aria-label="Lab instructions"><button className="home-outline" autoFocus onClick={()=>setShowInstructions(false)}>Back to experiment</button><h2>{activeLab.title}</h2><h3>Learning outcomes</h3><p className="preserve-lines">{activeLab.outcomes}</p><h3>Instructions</h3><p className="preserve-lines">{activeLab.instructions}</p></section></dialog>}</>:<main className="platform-page platform-empty"><h1>Choose an experiment first.</h1><p>Open a lab from the public browser to begin practising.</p><a className="home-primary" href="#browse">Browse labs</a></main>)}
  {!['home','browse','signin','studio','create','edit','details','profile','practice','lab','dashboard','plans','checkout','org','admin'].includes(page)&&<main className="platform-page"><h1>Page not found</h1><a href="#browse">Browse labs</a></main>}
- </>}
+ </PageBoundary>}
  {ready&&page!=='lab'&&<NourWidget onOpenLab={id=>go('details/'+id)}/>}
  </>;
 }

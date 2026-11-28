@@ -76,11 +76,11 @@ Open any creator's profile and press **Follow**: no approval needed. When they p
 
 ### Plans and payments
 
-Plans, prices and limits are data in `shared/plans.js`: Free ($0: 2 public labs, titration only, 10 Nour questions a day), Pro ($10/month, $30/semester, $80/year: unlimited and private labs, all chemistry engines, 100 Nour questions a day) and Organization ($30 per seat per year for 25–199 seats, $20 for 200–999, custom above; 30-day pilot with 25 seats). Egypt and MENA students see 40% of list price.
+Plans, prices and limits are data in `shared/plans.js`. Prices are in Egyptian pounds: Free (EGP 0: 2 public labs, titration only, 20 Nour messages a month), Individual (EGP 199/month or EGP 1,690/year: unlimited and private labs, all chemistry engines, 100 Nour messages a month) and Institution licence (EGP 750 per seat per semester, 100-seat minimum, billed by invoice, 80 Nour messages a month per member; 30-day pilot with 25 seats). Individual subscribers can buy a top-up pack (EGP 149 for 100 more Nour messages that month).
 
 No real money is taken yet and no card data ever reaches the server. `PAYMENT_PROVIDER=manual` (default) lets admins grant Pro or create activation codes; `PAYMENT_PROVIDER=mock` adds a test checkout that goes through the same signed, idempotent webhook a real gateway would use. Disabled stubs in `server/billing/providers.mjs` document where Paymob or a merchant of record would plug in. `DEMO_MODE=1` unlocks everything for judges.
 
-Organizations: start a pilot from **Plans**, then invite members by email (pending invites are accepted when that email signs up) or share a join code. The organization page shows seats, members, usage, and an invoice request form.
+Institutions: start a pilot from **Plans**, then invite members by email (pending invites are accepted when that email signs up) or share a join code. The organization page shows seats, members, usage, and an invoice request form.
 
 ### Chemistry labs
 

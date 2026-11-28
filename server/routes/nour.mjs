@@ -1,6 +1,6 @@
 // Nour: LangChain chain over Gemini with access-filtered RAG. The browser sends kind, labId, bench state and
 // messages; lab title, goal and instructions are loaded from the database (ctx from the browser is ignored).
-import { fail, getPlan, consumeDaily } from '../lib.mjs';
+import { fail, getPlan, consumeMonthly, nourExtra } from '../lib.mjs';
 import { createNourChain } from '../llm/chains.mjs';
 import { aiConfigured, mapAiError } from '../llm/models.mjs';
 
@@ -26,7 +26,8 @@ export default function register(r, { db, limit }) {
     if (!['home', 'lab'].includes(ctx.body.kind)) fail(400, 'Invalid conversation.');
     if (ctx.body.kind === 'lab' && typeof ctx.body.labId !== 'string') fail(400, 'Tell Nour which lab you are in.');
     const messages = validateMessages(ctx.body.messages);
-    consumeDaily(db, ctx.actor(), 'nour', getPlan(db, ctx.user).limits.nourPerDay);
+    const plan = getPlan(db, ctx.user);
+    consumeMonthly(db, ctx.actor(), 'nour', plan.limits.nourPerMonth + nourExtra(db, ctx.user), { canTopUp: plan.plan === 'pro' });
     try {
       return await chain.invoke({ kind: ctx.body.kind, labId: ctx.body.labId, state: ctx.body.state, messages },
         { configurable: { viewer: ctx.user, viewerId: ctx.user?.id || '' } });
